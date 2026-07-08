@@ -70,7 +70,7 @@ class Specter2EmbeddingProvider:
     """Wraps `allenai/specter2_base` for Index B (literature corpus).
 
     Falls back to `BgeSmallEmbeddingProvider` if SPECTER2's adapter-transformers
-    dependency chain can't be installed in time — see README "fallback" note.
+    dependency chain can't be installed in time - see README "fallback" note.
     """
 
     def __init__(
@@ -84,34 +84,48 @@ class Specter2EmbeddingProvider:
         self._device = device
         self._tokenizer = None
         self._model = None
+        self._fallback: BgeSmallEmbeddingProvider | None = None
 
     def _ensure_loaded(self) -> None:
-        if self._model is not None:
+        if self._model is not None or self._fallback is not None:
             return
-        from adapters import AutoAdapterModel
-        from transformers import AutoTokenizer
+        try:
+            from adapters import AutoAdapterModel
+            from transformers import AutoTokenizer
 
-        self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-        model = AutoAdapterModel.from_pretrained(self._model_name)
-        model.load_adapter(self._adapter_name, source="hf", load_as="specter2_proximity", set_active=True)
-        model.to(self._device)
-        model.eval()
-        self._model = model
+            self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
+            model = AutoAdapterModel.from_pretrained(self._model_name)
+            model.load_adapter(self._adapter_name, source="hf", load_as="specter2_proximity", set_active=True)
+            model.to(self._device)
+            model.eval()
+            self._model = model
+        except Exception as exc:  # the documented fallback (see README): degraded, never down
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "SPECTER2 load failed (%s); falling back to bge-small for Index B "
+                "- literature-similarity quality is reduced but functional.", exc
+            )
+            self._fallback = BgeSmallEmbeddingProvider(device=self._device)
 
     def embed(self, texts: list[str]) -> np.ndarray:
         """Encode `title [SEP] abstract` strings for literature-similarity search.
 
         Args:
-            texts: pre-joined "title [SEP] abstract" strings — SPECTER2 was
+            texts: pre-joined "title [SEP] abstract" strings - SPECTER2 was
                 trained on exactly this input format, so callers must not
                 pass raw title/abstract separately.
 
         Returns:
             float32 array of shape (len(texts), self.dimension), unit-normalized.
         """
+        self._ensure_loaded()
+        if self._fallback is not None:
+            # bge has no [SEP] convention; plain space-join degrades gracefully
+            return self._fallback.embed([t.replace("[SEP]", " ") for t in texts])
+
         import torch
 
-        self._ensure_loaded()
         inputs = self._tokenizer(
             texts, padding=True, truncation=True, return_tensors="pt", max_length=512
         )
@@ -127,4 +141,6 @@ class Specter2EmbeddingProvider:
     @property
     def dimension(self) -> int:
         self._ensure_loaded()
+        if self._fallback is not None:
+            return self._fallback.dimension
         return self._model.config.hidden_size

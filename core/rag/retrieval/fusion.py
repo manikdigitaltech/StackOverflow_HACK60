@@ -1,4 +1,4 @@
-"""Reciprocal Rank Fusion (RRF) — merges dense and sparse rankings for Index A.
+"""Reciprocal Rank Fusion (RRF) - merges dense and sparse rankings for Index A.
 
 RRF is chosen over score-normalization-and-sum because dense cosine scores
 and BM25 scores live on incomparable scales; RRF sidesteps that by only ever
@@ -29,7 +29,9 @@ def reciprocal_rank_fusion(
         rrf_score = sum over rankings of 1 / (k + rank_in_that_ranking).
         A candidate absent from a given ranking contributes 0 for that term.
     """
-    # TODO(Phase 3): for each ranking, for each (candidate_id, _) at position
-    #   `rank` (0-indexed), accumulate 1 / (k + rank + 1) into a running
-    #   score dict keyed by candidate_id. Sort the merged dict by score desc.
-    raise NotImplementedError
+    scores: dict[int, float] = {}
+    for ranking in rankings:
+        for rank, (candidate_id, _original_score) in enumerate(ranking):
+            scores[candidate_id] = scores.get(candidate_id, 0.0) + 1.0 / (k + rank + 1)
+    # tie-break on candidate_id so fusion output is fully deterministic
+    return sorted(scores.items(), key=lambda item: (-item[1], item[0]))

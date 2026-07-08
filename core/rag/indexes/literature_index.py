@@ -1,4 +1,4 @@
-"""Index B — Literature-RAG: persistent, paper-level, dense-only.
+"""Index B - Literature-RAG: persistent, paper-level, dense-only.
 
 Built once offline by `core.rag.ingestion.build_corpus` from the PeerRead
 dataset, then loaded at process startup and reused across every review run.

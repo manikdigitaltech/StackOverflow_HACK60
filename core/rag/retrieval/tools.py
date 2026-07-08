@@ -39,11 +39,7 @@ def retrieve_from_paper(
     Returns:
         Ranked list of `RetrievalResult` (source="paper_rag").
     """
-    # TODO(Phase 3): delegate to index.retrieve(query, section_filter, k)
-    #   once PaperIndex hybrid retrieval lands. This wrapper exists so the
-    #   tool signature agents depend on is stable even if PaperIndex's own
-    #   API changes.
-    raise NotImplementedError
+    return index.retrieve(query, section_filter=section_filter, k=k)
 
 
 def search_literature(
@@ -65,9 +61,7 @@ def search_literature(
     Returns:
         Ranked list of `RetrievalResult` (source="literature_rag").
     """
-    # TODO(Phase 4): delegate to index.search_literature(query, k,
-    #   exclude_paper_id).
-    raise NotImplementedError
+    return index.search_literature(query, k=k, exclude_paper_id=exclude_paper_id)
 
 
 def search_semantic_scholar(
@@ -83,12 +77,7 @@ def search_semantic_scholar(
         Ranked list of `RetrievalResult` (source="semantic_scholar"), or `[]`
         if the live call fails for any reason.
     """
-    # TODO(Phase 5): delegate directly to
-    #   core.rag.live_sources.semantic_scholar_client.search_semantic_scholar.
-    #   Kept as a separate function here (rather than a re-export) so a
-    #   future caching/rate-limit layer can be inserted without changing the
-    #   agent-facing import path.
-    raise NotImplementedError
+    return _search_semantic_scholar(query, k=k)
 
 
 def search_arxiv(
@@ -104,6 +93,4 @@ def search_arxiv(
         Ranked list of `RetrievalResult` (source="arxiv"), or `[]` if the
         live call fails for any reason.
     """
-    # TODO(Phase 5): delegate directly to
-    #   core.rag.live_sources.arxiv_client.search_arxiv.
-    raise NotImplementedError
+    return _search_arxiv(query, k=k)

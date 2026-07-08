@@ -1,4 +1,4 @@
-"""Plain-Python configuration for the RAG subsystem — no YAML, no env-file magic.
+"""Plain-Python configuration for the RAG subsystem - no YAML, no env-file magic.
 
 Import `RAG_SETTINGS` and read attributes directly. If a value needs to vary
 per environment, override it via constructor args when instantiating indexes
@@ -22,7 +22,7 @@ class ChunkingSettings:
 
 @dataclass(frozen=True)
 class PaperIndexSettings:
-    """Index A — ephemeral, rebuilt per review run."""
+    """Index A - ephemeral, rebuilt per review run."""
 
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     rrf_k: int = 60
@@ -31,7 +31,7 @@ class PaperIndexSettings:
 
 @dataclass(frozen=True)
 class LiteratureIndexSettings:
-    """Index B — persistent, built once offline."""
+    """Index B - persistent, built once offline."""
 
     embedding_model: str = "allenai/specter2_base"
     fallback_embedding_model: str = "BAAI/bge-small-en-v1.5"

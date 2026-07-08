@@ -1,4 +1,4 @@
-"""Thin client for the arXiv API (no auth) — a live enhancement, not a guarantee.
+"""Thin client for the arXiv API (no auth) - a live enhancement, not a guarantee.
 
 Same resilience contract as `semantic_scholar_client`: never raise out of
 this module, always degrade to `[]` plus a logged warning.
@@ -26,11 +26,37 @@ def search_arxiv(
         Up to `k` `RetrievalResult`s with source="arxiv". Returns `[]` on any
         network error, timeout, or parse failure.
     """
-    # TODO(Phase 5): use the `arxiv` package's Search(query=..., max_results=k)
-    #   wrapped in try/except with a timeout guard (the arxiv package doesn't
-    #   expose one directly - consider running it under a thread/asyncio
-    #   timeout, or fall back to raw `requests.get` against the Atom API with
-    #   RAG_SETTINGS.live_sources.request_timeout_seconds). Log and return []
-    #   on failure. Map each entry's title/summary/published into
-    #   RetrievalResult(source="arxiv").
-    raise NotImplementedError
+    # raw Atom API via requests instead of the `arxiv` package: the package
+    # exposes no timeout, and a hung live call must never stall a review run.
+    import xml.etree.ElementTree as ET
+
+    import requests
+
+    try:
+        response = requests.get(
+            "https://export.arxiv.org/api/query",
+            params={"search_query": f"all:{query}", "max_results": k, "start": 0},
+            timeout=RAG_SETTINGS.live_sources.request_timeout_seconds,
+        )
+        response.raise_for_status()
+        root = ET.fromstring(response.text)
+    except (requests.RequestException, ET.ParseError, ValueError) as exc:
+        logger.warning("arxiv search failed, degrading to []: %s", exc)
+        return []
+
+    ns = {"atom": "http://www.w3.org/2005/Atom"}
+    results: list[RetrievalResult] = []
+    for rank, entry in enumerate(root.findall("atom:entry", ns)[:k]):
+        title = " ".join((entry.findtext("atom:title", "", ns) or "").split())
+        summary = " ".join((entry.findtext("atom:summary", "", ns) or "").split())
+        if not title:
+            continue
+        results.append(RetrievalResult(
+            source="arxiv",
+            score=1.0 / (rank + 1),  # Atom feed is relevance-ordered, no score field
+            content=f"{title}\n{summary}" if summary else title,
+            metadata={"title": title,
+                      "published": entry.findtext("atom:published", "", ns),
+                      "url": entry.findtext("atom:id", "", ns)},
+        ))
+    return results
