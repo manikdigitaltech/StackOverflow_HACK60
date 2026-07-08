@@ -1,3 +1,4 @@
 docker-compose.yml
 .env
 /data/parsed_cache
+data/peerread_raw/
