@@ -82,6 +82,8 @@ class IngestionSettings(BaseModel):
     max_peerread_papers: int = 30
     enable_arxiv: bool = False          # optional, off by default per current plan
     enable_semantic_scholar: bool = False  # optional, off by default per current plan
+    arxiv_search_query: str = "cat:cs.CV"  # override in .env to target your paper's actual subfield
+    arxiv_max_results: int = 20
 
 
 class AppSettings(BaseSettings):

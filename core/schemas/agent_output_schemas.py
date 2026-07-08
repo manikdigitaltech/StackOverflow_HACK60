@@ -44,3 +44,17 @@ class ParsedPaper(BaseModel):
     figures: List[Figure]
     references: List[Reference]
     source_pdf_path: str
+
+
+class LiteratureMatch(BaseModel):
+    paper_id: int
+    title: str
+    year: Optional[int] = None
+    chunk_text: str
+    section_type: Optional[str] = None
+    similarity_score: float
+
+
+class LiteratureContext(BaseModel):
+    query_text: str
+    matches: List[LiteratureMatch]

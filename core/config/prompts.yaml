@@ -1,0 +1,20 @@
+# Prompt templates, one entry per agent task.
+#
+# Each entry has:
+#   system:        system prompt (optional)
+#   user:          user prompt, with {variable} placeholders filled by PromptManager.render()
+#   output_schema: name of the Pydantic model this output should validate against
+#                  (wired to real schema classes when agents are built in Step 7)
+#
+# This file currently has only a connectivity-test template, used to prove
+# the LLM + PromptManager plumbing works end-to-end (Step 4). Agent-specific
+# templates (novelty_agent, methodology_agent, citation_agent, etc.) are
+# added one at a time as we build each agent in Step 7.
+
+connectivity_test:
+  system: |
+    You are a helpful assistant. Respond concisely, in one short sentence.
+  user: |
+    Confirm you are working correctly, and mention the word "{keyword}"
+    somewhere in your response.
+  output_schema: null
