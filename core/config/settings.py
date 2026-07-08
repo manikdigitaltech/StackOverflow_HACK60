@@ -11,9 +11,12 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+from urllib.parse import quote_plus
+
+
 class DBSettings(BaseModel):
     host: str = "localhost"
-    port: int = 3306
+    port: int = 3307
     user: str = "reviewer_app"
     password: str = "changeme"
     database: str = "paper_reviewer"
@@ -21,8 +24,10 @@ class DBSettings(BaseModel):
 
     @property
     def sqlalchemy_url(self) -> str:
+        safe_user = quote_plus(self.user)
+        safe_password = quote_plus(self.password)
         return (
-            f"mysql+pymysql://{self.user}:{self.password}"
+            f"mysql+pymysql://{safe_user}:{safe_password}"
             f"@{self.host}:{self.port}/{self.database}"
         )
 
