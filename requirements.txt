@@ -1,0 +1,29 @@
+# --- Config ---
+pydantic>=2.6
+pydantic-settings>=2.2
+
+# --- LangGraph / LangChain (agent orchestration + Ollama client) ---
+langgraph>=0.2
+langgraph-checkpoint-sqlite
+langchain>=0.2
+langchain-community
+
+# --- Parsing ---
+docling
+pymupdf
+
+# --- Vector search + embeddings ---
+faiss-cpu
+sentence-transformers   # serves bge-large-en-v1.5 / e5-large locally
+
+# --- MySQL ---
+sqlalchemy>=2.0
+alembic
+pymysql
+cryptography            # required by pymysql for auth on MySQL 8
+
+# --- UI ---
+streamlit
+
+# --- Utilities ---
+python-dotenv
