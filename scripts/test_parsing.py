@@ -29,22 +29,23 @@ print(f"Figures: {len(parsed.figures)}")
 print(f"References parsed: {len(parsed.references)}")
 
 if parsed.tables:
-    print("\n--- First table (markdown, truncated) ---")
-    print(parsed.tables[0].markdown[:500])
+    print(f"\n--- All {len(parsed.tables)} table(s) (markdown, truncated to 400 chars each) ---")
+    for t in parsed.tables:
+        print(f"\n[{t.table_id}] page {t.page}, caption: {t.caption!r}")
+        print(t.markdown[:400])
 
 if parsed.figures:
-    fig = parsed.figures[0]
-    print(f"\n--- Test-cropping first figure (page {fig.page}, bbox {fig.bbox}) ---")
-    if fig.bbox and fig.page:
-        out_path = "./data/parsed_cache/test_figure_crop.png"
-        try:
-            crop_figure(pdf_path, fig.page, fig.bbox, out_path)
-            print(f"Crop saved to: {out_path} — open it and confirm it actually shows the figure.")
-        except Exception as e:
-            print(f"Crop failed: {e}")
-            print("This is the coordinate-conversion step mentioned in figure_cropper.py's docstring — "
-                  "paste this error back and we'll fix it.")
-    else:
-        print("No bbox/page available for this figure — skipping crop test.")
+    print(f"\n--- Cropping all {len(parsed.figures)} figure(s) ---")
+    for fig in parsed.figures:
+        print(f"\n[{fig.figure_id}] page {fig.page}, bbox {fig.bbox}, caption: {fig.caption!r}")
+        if fig.bbox and fig.page:
+            out_path = f"./data/parsed_cache/{fig.figure_id}.png"
+            try:
+                crop_figure(pdf_path, fig.page, fig.bbox, out_path)
+                print(f"  -> saved: {out_path}")
+            except Exception as e:
+                print(f"  -> crop failed: {e}")
+        else:
+            print("  -> no bbox/page available, skipping")
 else:
-    print("\nNo figures detected in this PDF — try a different sample if you want to test figure cropping.")
+    print("\nNo figures detected in this PDF.")

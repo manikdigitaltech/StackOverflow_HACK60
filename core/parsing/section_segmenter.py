@@ -31,17 +31,46 @@ _CANONICAL_SECTION_KEYWORDS = {
 }
 
 
+import re
+
+_NUMBERING_PREFIX_PATTERN = re.compile(r"^\s*\d+(\.\d+)*[\.\)]?\s*")
+
+
+def _strip_numbering(text: str) -> str:
+    return _NUMBERING_PREFIX_PATTERN.sub("", text).strip()
+
+
 def _canonical_name(heading_text: str) -> str:
-    lowered = heading_text.strip().lower()
+    cleaned = _strip_numbering(heading_text)
+    lowered = cleaned.lower()
     for keyword, canonical in _CANONICAL_SECTION_KEYWORDS.items():
         if keyword in lowered:
             return canonical
-    return heading_text.strip() or "Untitled Section"
+    return cleaned or "Untitled Section"
 
 
 def _is_heading_label(label: str) -> bool:
     label = (label or "").lower()
     return "head" in label or "title" in label or "section" in label
+
+
+def _detect_title(text_items: List[Tuple[str, str, Optional[int]]]) -> str:
+    """
+    Determine the paper's title BEFORE segmenting sections, so we can filter
+    out any later occurrence of it (e.g. a running header) regardless of
+    where in the reading order it appears relative to an explicit
+    'title'-labeled item (which many PDFs don't actually have).
+    """
+    for label, text, _page in text_items:
+        if (label or "").lower() == "title" and text and text.strip():
+            return text.strip()
+    # No explicit title-labeled item — fall back to the first non-empty
+    # text block, which in practice is almost always the title for
+    # academic papers (the big heading at the top of page 1).
+    for _label, text, _page in text_items:
+        if text and text.strip():
+            return text.strip()
+    return ""
 
 
 def segment_sections(
@@ -53,8 +82,9 @@ def segment_sections(
 
     Returns: (sections, title, abstract)
     """
+    title = _detect_title(text_items)
+
     sections: List[Section] = []
-    title = ""
     current_heading = None
     current_raw_heading = None
     current_text_parts: List[str] = []
@@ -74,8 +104,9 @@ def segment_sections(
         if not text:
             continue
 
-        if not title and (label or "").lower() == "title":
-            title = text
+        # Skip the title itself wherever it appears (main heading, running
+        # header repeats on later pages, etc.) — it's never a real section.
+        if title and text == title:
             continue
 
         if _is_heading_label(label):
@@ -86,19 +117,12 @@ def segment_sections(
             current_page_start = page_no
         else:
             if current_heading is None:
-                # Text before any detected heading — keep it, don't drop it silently.
                 current_heading = "Preamble"
                 current_raw_heading = None
                 current_page_start = page_no
             current_text_parts.append(text)
 
     flush()
-
-    if not title:
-        for _label, text, _page in text_items:
-            if text and text.strip():
-                title = text.strip()
-                break
 
     abstract = ""
     for section in sections:

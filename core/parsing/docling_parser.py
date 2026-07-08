@@ -12,9 +12,11 @@ import sys
 from pathlib import Path
 from typing import List, Tuple, Optional
 
+import fitz  # PyMuPDF -- used here only for a cheap page-count check
 from docling.document_converter import DocumentConverter
 from docling_core.types.doc import TextItem, TableItem, PictureItem
 
+from core.config.settings import settings
 from core.schemas.agent_output_schemas import ParsedPaper, Table, Figure
 from core.parsing.section_segmenter import segment_sections
 from core.parsing.reference_extractor import extract_references
@@ -26,7 +28,26 @@ class DoclingParser:
 
     def parse(self, pdf_path: str) -> ParsedPaper:
         pdf_path = str(pdf_path)
-        result = self._converter.convert(pdf_path)
+
+        # Cheap page-count check BEFORE running Docling's full pipeline --
+        # a safety valve against an accidental huge upload (e.g. a 300-page
+        # dissertation) hanging the whole review for minutes on CPU.
+        quick_doc = fitz.open(pdf_path)
+        total_pages = quick_doc.page_count
+        quick_doc.close()
+
+        convert_kwargs = {}
+        max_pages = settings.parsing.max_pages_hard_cap
+        if max_pages and total_pages > max_pages:
+            print(
+                f"[DoclingParser] WARNING: '{pdf_path}' has {total_pages} pages, "
+                f"exceeding max_pages_hard_cap={max_pages}. Processing only the "
+                f"first {max_pages} pages -- adjust PARSING__MAX_PAGES_HARD_CAP "
+                f"in .env if this document should be processed in full."
+            )
+            convert_kwargs["page_range"] = (1, max_pages)
+
+        result = self._converter.convert(pdf_path, **convert_kwargs)
         doc = result.document
 
         # --- Flatten the reading-order stream of text items ---

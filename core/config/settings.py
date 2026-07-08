@@ -45,6 +45,12 @@ class LLMSettings(BaseModel):
     max_tokens: int = 4096
     json_mode: bool = True
     request_timeout_seconds: int = 120  # generous default for CPU inference
+    context_window: int = 8192          # passed as Ollama's num_ctx — default Ollama context (2048-4096) is too small
+
+
+class ParsingSettings(BaseModel):
+    max_pages_hard_cap: int = 60        # safety valve for accidental huge uploads; generous for any normal paper/thesis chapter
+    prompt_token_budget: int = 6000     # total budget for paper content injected into a single agent prompt
 
 
 class VisionSettings(BaseModel):
@@ -87,6 +93,7 @@ class AppSettings(BaseSettings):
     faiss: FAISSSettings = FAISSSettings()
     reflection: ReflectionSettings = ReflectionSettings()
     ingestion: IngestionSettings = IngestionSettings()
+    parsing: ParsingSettings = ParsingSettings()
     log_level: str = "INFO"
 
     model_config = SettingsConfigDict(
