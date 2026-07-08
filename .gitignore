@@ -1,0 +1,26 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+.ipynb_checkpoints/
+
+# large data folders
+PeerRead/
+peerread_processed/
+data/
+finetune_data/
+
+# model and output folders
+models/
+outputs/
+
+# large model files
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.gguf
+
+# environment files
+.env
