@@ -11,6 +11,8 @@ langchain-community
 # --- Parsing ---
 docling
 pymupdf
+pandas
+tabulate   # needed for DataFrame.to_markdown() used in table export
 
 # --- Vector search + embeddings ---
 faiss-cpu
