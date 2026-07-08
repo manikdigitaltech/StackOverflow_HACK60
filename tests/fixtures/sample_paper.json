@@ -1,0 +1,13 @@
+{
+  "paper_id": "sample-001",
+  "title": "A Sample Paper for Chunker Testing",
+  "sections": {
+    "abstract": "This paper studies a toy problem for testing purposes only.",
+    "introduction": "Prior work has not addressed this toy problem in depth. We do.",
+    "method": "We propose a simple method consisting of two steps: (1) do a thing, (2) measure it.",
+    "experiments": "We evaluate on a synthetic dataset with 100 examples. See Table 1 for results.\n\n| Metric | Value |\n|---|---|\n| Accuracy | 0.91 |\n| F1 | 0.88 |",
+    "results": "Our method outperforms the baseline by 3 points on average.",
+    "related_work": "Related work includes prior toy-problem studies from the literature.",
+    "conclusion": "We conclude that the toy method works on the toy problem."
+  }
+}
