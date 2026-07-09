@@ -1855,6 +1855,18 @@
     let selectedCardKey = null;   // null = auto-follow mode; set = pinned to that card
     let lastUpdatedCardKey = null;
 
+    const API_BASE_URL = (() => {
+      const params = new URLSearchParams(window.location.search);
+      const fromQuery = params.get('api');
+      if (fromQuery) localStorage.setItem('paperReviewerApiBaseUrl', fromQuery);
+      const configured = fromQuery || window.API_BASE_URL || localStorage.getItem('paperReviewerApiBaseUrl') || '';
+      return configured.replace(/\/+$/, '');
+    })();
+
+    function apiUrl(path) {
+      return API_BASE_URL + path;
+    }
+
     function summaryFor(card) {
       const events = card.stageKeys.map(sk => liveEvents[sk]).filter(Boolean);
       if (!events.length) return 'Waiting…';
@@ -2004,7 +2016,7 @@
       try {
         const form = new FormData();
         form.append('file', file);
-        const uploadResp = await fetch('/api/upload', { method: 'POST', body: form });
+        const uploadResp = await fetch(apiUrl('/api/upload'), { method: 'POST', body: form });
         if (!uploadResp.ok) throw new Error(`Upload failed: ${uploadResp.status}`);
         const { run_id, filename } = await uploadResp.json();
         runId = run_id;
@@ -2030,7 +2042,7 @@
 
     function startStream(id) {
       if (currentEventSource) currentEventSource.close();
-      currentEventSource = new EventSource('/api/stream/' + id);
+      currentEventSource = new EventSource(apiUrl('/api/stream/' + id));
       currentEventSource.onmessage = (msg) => {
         const event = JSON.parse(msg.data);
         if (event.stage === 'pipeline') {
@@ -2303,7 +2315,7 @@
       if (!input.value.trim() || !runId) return;
       resultsBox.innerHTML = '<div class="query-hit-text">Searching…</div>';
       try {
-        const resp = await fetch(`/api/query/${runId}?q=${encodeURIComponent(input.value)}`);
+        const resp = await fetch(apiUrl(`/api/query/${runId}?q=${encodeURIComponent(input.value)}`));
         const data = await resp.json();
         if (data.error) { resultsBox.innerHTML = `<div class="query-hit-text">${escapeHtml(data.error)}</div>`; return; }
         resultsBox.innerHTML = data.results.map(r => `
@@ -2479,7 +2491,7 @@
       }
 
       try {
-        const resp = await fetch(`/api/approve/${runId}`, {
+        const resp = await fetch(apiUrl(`/api/approve/${runId}`), {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         });
         const data = await resp.json();
