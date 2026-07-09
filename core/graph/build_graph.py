@@ -1,5 +1,5 @@
 """
-Assembles the review orchestration graph. Wires 10 agents into one bounded,
+Assembles the review orchestration graph. Wires 11 agents into one bounded,
 checkpointed LangGraph run, then gates the final recommendation behind a
 mandatory human-in-the-loop approval interrupt (DB persistence of the
 review + the approval decision is a separate concern -- see
@@ -10,13 +10,14 @@ Shape:
     START --> paper_understanding --\\
           \\-> literature_rag --------+--> novelty ----------\\
           \\-> figure_table (also -\\  \\-> citation           \\
-          \\-> methodology         |  \\-----------------------+--> adversarial_critic --\\
-          \\-> evidence_repro -----/-------------------------- /                          \\
+          \\-> reference_usage (also-|  \\-----------------------+--> adversarial_critic --\\
+          \\-> methodology         |  \\-----------------------|                            \\
+          \\-> evidence_repro -----/-------------------------- /                             \\
                                                                  \\------------------------> reflection --[revise]--> prepare_revision --\\
                                                                                                   |                                       |
                                                                                                   [proceed]                     (loops back to
                                                                                                   v                               novelty/methodology/
-                                                                                        ready_for_synthesis <-- figure_table       citation/evidence_repro
+                                                                     ready_for_synthesis <-- figure_table + reference_usage      citation/evidence_repro
                                                                                                   |                                (which re-triggers
                                                                                                   v                              adversarial_critic's own
                                                                                             final_review                          join automatically))
@@ -40,10 +41,13 @@ NOT wired with its own direct edge from prepare_revision: adversarial_critic
 re-fires on a revision pass "for free" because its 3 join sources
 (methodology/citation/evidence_reproducibility) are themselves re-triggered
 by prepare_revision -- adding a second edge into it would reintroduce the
-OR-trigger bug this whole note warns about. figure_table's one-shot output
-and reflection's "proceed" decision are combined via ready_for_synthesis,
-since a conditional edge's dynamic target can't itself be a list-join entry
-(see nodes.py).
+OR-trigger bug this whole note warns about. figure_table and reference_usage's
+one-shot outputs and reflection's "proceed" decision are combined via
+ready_for_synthesis, since a conditional edge's dynamic target can't itself
+be a list-join entry (see nodes.py). reference_usage (checks how the paper
+uses its OWN bibliography -- the inverse of citation, which checks external
+literature coverage) is deliberately scoped the same way as figure_table:
+one-shot, never revised, and out of reflection/adversarial_critic's scope.
 """
 from __future__ import annotations
 
@@ -81,6 +85,7 @@ def build_review_graph(llm=None, prompt_manager=None, checkpointer=None):
     graph.add_node("paper_understanding", nodes.paper_understanding)
     graph.add_node("literature_rag", nodes.literature_rag)
     graph.add_node("figure_table", nodes.figure_table)
+    graph.add_node("reference_usage", nodes.reference_usage)
     graph.add_node("novelty", nodes.novelty)
     graph.add_node("methodology", nodes.methodology)
     graph.add_node("citation", nodes.citation)
@@ -96,6 +101,7 @@ def build_review_graph(llm=None, prompt_manager=None, checkpointer=None):
     graph.add_edge(START, "paper_understanding")
     graph.add_edge(START, "literature_rag")
     graph.add_edge(START, "figure_table")
+    graph.add_edge(START, "reference_usage")
     graph.add_edge(START, "methodology")
     graph.add_edge(START, "evidence_reproducibility")
 
@@ -143,11 +149,15 @@ def build_review_graph(llm=None, prompt_manager=None, checkpointer=None):
     # the same node -- exactly the OR-vs-AND-join bug this file's docstring
     # warns about.
 
-    # figure_table never gets revised and has no other consumer. Its one-shot
-    # output and the "proceed" decision are combined into a single real
-    # AND-join here (see ready_for_synthesis's docstring for why this
-    # indirection is necessary rather than two separate edges into final_review).
-    graph.add_edge(["figure_table", "ready_for_synthesis"], "final_review")
+    # figure_table and reference_usage never get revised and have no other
+    # consumer (reference_usage checks how the paper uses its OWN
+    # bibliography -- the inverse of citation, which checks external
+    # literature coverage -- and stays out of the reflection/adversarial_critic
+    # loop by design, same as figure_table). Their one-shot outputs and the
+    # "proceed" decision are combined into a single real AND-join here (see
+    # ready_for_synthesis's docstring for why this indirection is necessary
+    # rather than separate edges into final_review).
+    graph.add_edge(["figure_table", "reference_usage", "ready_for_synthesis"], "final_review")
 
     # Mandatory human-in-the-loop gate: the drafted recommendation is not
     # "issued" until a human resumes the interrupted run. interrupt() (in

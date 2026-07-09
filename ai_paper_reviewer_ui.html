@@ -2043,6 +2043,9 @@
             <h3>Citation Quality</h3>
             <p id="finalCitationQuality">—</p>
 
+            <h3>Reference Usage Quality</h3>
+            <p id="finalReferenceUsageQuality">—</p>
+
             <h3>Reproducibility</h3>
             <p id="finalReproducibility">—</p>
 
@@ -2126,6 +2129,7 @@
       { key: 'novelty_llm_agent', label: 'Novelty Agent (LLM Reasoning)', stageKeys: ['novelty_llm_agent'], icon: ICONS.novelty },
       { key: 'methodology_agent', label: 'Methodology Agent', stageKeys: ['methodology_agent'], icon: ICONS.methodology },
       { key: 'citation_agent', label: 'Citation Agent', stageKeys: ['citation_agent'], icon: ICONS.citation },
+      { key: 'reference_usage_agent', label: 'Reference Usage Agent', stageKeys: ['reference_usage_agent'], icon: ICONS.citation },
       { key: 'evidence_agent', label: 'Evidence & Reproducibility Agent', stageKeys: ['evidence_agent'], icon: ICONS.evidence },
       { key: 'adversarial_critic_agent', label: 'Adversarial Critic Agent', stageKeys: ['adversarial_critic_agent'], icon: ICONS.adversarial },
       { key: 'reflection_agent', label: 'Self-Reflection / Verifier Agent', stageKeys: ['reflection_agent'], icon: ICONS.reflection },
@@ -2476,6 +2480,7 @@
         { stage: 'vision', status: 'running', message: 'Cropping + describing up to 6 figure(s)...' },
         { stage: 'vision', status: 'done', elapsed_s: 4.02, num_analyzed: 3, figures: [] },
         { stage: 'novelty_agent', status: 'not_available', message: 'No novelty corpus indexed yet.' },
+        { stage: 'reference_usage_agent', status: 'done', elapsed_s: 2.8, result: { reference_verdicts: [], overall_rating: 'good', summary: 'Mock reference usage summary.' } },
         { stage: 'methodology_agent', status: 'running', message: 'Running...' },
         { stage: 'methodology_agent', status: 'error', message: 'LLM request timed out after 60s.' },
         { stage: 'reflection_agent', status: 'running', message: 'Revision pass 1: re-running assessment agents with feedback...' },
@@ -2744,6 +2749,17 @@
         return `<div class="sp-block"><h5>Citation Quality: ${titleCase(r.citation_quality_rating)}</h5></div>` + verdicts +
           `<div class="sp-block"><h5>Reasoning</h5><p>${escapeHtml(r.reasoning)}</p></div>`;
       }
+      if (card.key === 'reference_usage_agent') {
+        const e = liveEvents['reference_usage_agent'];
+        if (!e || e.status !== 'done' || !e.result) return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting...'}</p></div>`;
+        const r = e.result;
+        const verdicts = r.reference_verdicts.length
+          ? r.reference_verdicts.map(v => `
+          <div class="sp-block"><h5>${v.cited_in_body ? 'CITED' : 'NOT CITED'} -- ${titleCase(v.role)} (usefulness: ${titleCase(v.usefulness)})</h5><p>${escapeHtml(v.reference)}</p><p><i>${escapeHtml(v.evidence)}</i></p></div>`).join('')
+          : `<div class="sp-block"><p>No references were extracted from this paper.</p></div>`;
+        return `<div class="sp-block"><h5>Overall Rating: ${titleCase(r.overall_rating)}</h5></div>` + verdicts +
+          `<div class="sp-block"><h5>Summary</h5><p>${escapeHtml(r.summary)}</p></div>`;
+      }
       if (card.key === 'evidence_agent') {
         const e = liveEvents['evidence_agent'];
         if (!e || e.status !== 'done' || !e.result) return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting...'}</p></div>`;
@@ -2865,6 +2881,7 @@
         return `
         <div class="sp-block"><h5>Novelty Analysis</h5><p>${escapeHtml(r.novelty_analysis)}</p></div>
         <div class="sp-block"><h5>Citation Quality</h5><p>${escapeHtml(r.citation_quality)}</p></div>
+        <div class="sp-block"><h5>Reference Usage Quality</h5><p>${escapeHtml(r.reference_usage_quality)}</p></div>
         <div class="sp-block"><h5>Reproducibility</h5><p>${escapeHtml(r.reproducibility)}</p></div>
         <div class="sp-block"><h5>Evidence Mapping</h5><p>${escapeHtml(r.evidence_mapping)}</p></div>`;
       }
@@ -2881,6 +2898,9 @@
       if (r.coverage_verdicts) return r.coverage_verdicts.length ? r.coverage_verdicts.map(v => `
         <div class="sp-block"><h5>${escapeHtml(v.related_paper_title)} -- ${v.cited ? 'CITED' : 'NOT CITED'}</h5><p>${escapeHtml(v.note)}</p></div>`).join('')
         : `<div class="sp-block"><p>No retrieved literature to check.</p></div>`;
+      if (r.reference_verdicts) return r.reference_verdicts.length ? r.reference_verdicts.map(v => `
+        <div class="sp-block"><h5>${v.cited_in_body ? 'CITED' : 'NOT CITED'} -- ${titleCase(v.role)}</h5><p>${escapeHtml(v.reference)}</p><p><i>${escapeHtml(v.evidence)}</i></p></div>`).join('')
+        : `<div class="sp-block"><p>No references were extracted from this paper.</p></div>`;
       if (r.aspect_verdicts) return r.aspect_verdicts.map(v => `
         <div class="sp-block"><h5>${titleCase(v.aspect)} -- ${v.assessment.toUpperCase()}</h5><p>${escapeHtml(v.note)}</p></div>`).join('');
       if (r.contribution_verdicts) return r.contribution_verdicts.map(v => `
@@ -2937,6 +2957,7 @@
         ['Novelty', liveEvents['novelty_llm_agent']?.result?.novelty_rating],
         ['Methodology', liveEvents['methodology_agent']?.result?.soundness_rating],
         ['Citation Quality', liveEvents['citation_agent']?.result?.citation_quality_rating],
+        ['Reference Usage', liveEvents['reference_usage_agent']?.result?.overall_rating],
         ['Evidence & Reproducibility', liveEvents['evidence_agent']?.result?.overall_rating],
       ];
       document.getElementById('finalSubscores').innerHTML = subscores.map(([label, rating]) => `
@@ -2951,6 +2972,7 @@
       document.getElementById('finalQuestions').innerHTML = r.questions_for_authors.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>';
       document.getElementById('finalNoveltyAnalysis').textContent = r.novelty_analysis;
       document.getElementById('finalCitationQuality').textContent = r.citation_quality;
+      document.getElementById('finalReferenceUsageQuality').textContent = r.reference_usage_quality;
       document.getElementById('finalReproducibility').textContent = r.reproducibility;
       document.getElementById('finalEvidenceMapping').textContent = r.evidence_mapping;
       document.getElementById('finalMissingBaselines').innerHTML = r.missing_baselines.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>';

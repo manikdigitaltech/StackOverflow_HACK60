@@ -24,6 +24,7 @@ from core.agents.literature_rag_agent import LiteratureRAGAgent
 from core.agents.methodology_agent import MethodologyAgent
 from core.agents.novelty_agent import NoveltyAgent
 from core.agents.paper_understanding_agent import PaperUnderstandingAgent
+from core.agents.reference_usage_agent import ReferenceUsageAgent
 from core.agents.reflection_agent import ReflectionAgent
 from core.config.settings import settings
 from core.graph.state import ReviewGraphState
@@ -72,6 +73,7 @@ class ReviewGraphNodes:
         self.novelty_agent = NoveltyAgent(llm, prompt_manager)
         self.methodology_agent = MethodologyAgent(llm, prompt_manager)
         self.citation_agent = CitationAgent(llm, prompt_manager)
+        self.reference_usage_agent = ReferenceUsageAgent(llm, prompt_manager)
         self.evidence_agent = EvidenceReproducibilityAgent(llm, prompt_manager)
         self.adversarial_critic_agent = AdversarialCriticAgent(llm, prompt_manager)
         self.reflection_agent = ReflectionAgent(llm, prompt_manager)
@@ -90,6 +92,13 @@ class ReviewGraphNodes:
     def figure_table(self, state: ReviewGraphState) -> dict:
         result = self.figure_table_agent.run({"parsed_paper": state["parsed_paper"]})
         return {"figure_table_summary": result}
+
+    def reference_usage(self, state: ReviewGraphState) -> dict:
+        """One-shot like figure_table -- checks how the paper uses its OWN
+        bibliography (inverse of citation, which checks external literature
+        coverage), so it never needs a revision re-run."""
+        result = self.reference_usage_agent.run({"parsed_paper": state["parsed_paper"]})
+        return {"reference_usage_assessment": result}
 
     # --- Stage 2: parallel assessments (re-run on a bounded revision pass) ---
 
@@ -197,6 +206,7 @@ class ReviewGraphNodes:
             "novelty_assessment": state["novelty_assessment"],
             "methodology_assessment": state["methodology_assessment"],
             "citation_assessment": state["citation_assessment"],
+            "reference_usage_assessment": state["reference_usage_assessment"],
             "evidence_assessment": state["evidence_assessment"],
             "reflection_notes": state["reflection_notes"],
         })

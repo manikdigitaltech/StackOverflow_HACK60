@@ -7,8 +7,8 @@ duplicating the same formatting logic in each.
 
 from core.schemas.agent_output_schemas import (
     PaperUnderstandingOutput, FigureTableSummary, NoveltyAssessment,
-    MethodologyAssessment, CitationAssessment, EvidenceReproducibilityAssessment,
-    ReflectionNotes, AdversarialCritique,
+    MethodologyAssessment, CitationAssessment, ReferenceUsageAssessment,
+    EvidenceReproducibilityAssessment, ReflectionNotes, AdversarialCritique,
 )
 
 
@@ -55,6 +55,15 @@ def format_citation(a: CitationAssessment) -> str:
         status = "cited" if v.cited else "NOT CITED"
         lines.append(f"  - [{status}] {v.related_paper_title}: {v.note}")
     lines.append(f"Reasoning: {a.reasoning}")
+    return "\n".join(lines)
+
+
+def format_reference_usage(a: ReferenceUsageAssessment) -> str:
+    lines = [f"Overall rating: {a.overall_rating}"]
+    for v in a.reference_verdicts:
+        status = "cited" if v.cited_in_body else "NOT CITED"
+        lines.append(f"  - [{status}, {v.role}, usefulness={v.usefulness}] {v.reference}: {v.evidence}")
+    lines.append(f"Summary: {a.summary}")
     return "\n".join(lines)
 
 

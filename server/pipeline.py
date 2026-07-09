@@ -4,7 +4,7 @@ and yields a live event per stage -- this is what server/main.py streams to
 the browser over Server-Sent Events.
 
 Deliberately honest about what exists: parse / figure-vision / RAG-chunk /
-paper-RAG-index / the full 10-agent LangGraph review (paper understanding
+paper-RAG-index / the full 11-agent LangGraph review (paper understanding
 through the human-approval interrupt) / MySQL persistence of the review +
 human decisions are all real code paths, executed for real. The graph
 genuinely pauses mid-run at the human-approval gate (LangGraph's
@@ -38,11 +38,16 @@ from core.schemas.agent_output_schemas import ParsedPaper
 
 logger = logging.getLogger(__name__)
 
-# ReviewAssessment rows are scoped to these 5 "judgment" nodes (matches
+# ReviewAssessment rows are scoped to these "judgment" nodes (matches
 # core/db/models.py's ReviewAssessment docstring) -- paper_understanding/
 # literature_rag/figure_table are inputs/context, not judgments, so they
-# aren't persisted as assessments.
-_ASSESSMENT_NODES = {"novelty", "methodology", "citation", "evidence_reproducibility", "final_review"}
+# aren't persisted as assessments. reference_usage IS a judgment (it rates
+# how well the paper uses its own bibliography), even though -- like
+# figure_table -- it's a one-shot node outside the revision loop.
+_ASSESSMENT_NODES = {
+    "novelty", "methodology", "citation", "reference_usage",
+    "evidence_reproducibility", "final_review",
+}
 
 # LangGraph node name -> the `stage` key the UI's CARDS array expects (see
 # ai_paper_reviewer_ui.html). "prepare_revision" and "ready_for_synthesis"
@@ -55,6 +60,7 @@ _GRAPH_NODE_TO_STAGE = {
     "novelty": "novelty_llm_agent",
     "methodology": "methodology_agent",
     "citation": "citation_agent",
+    "reference_usage": "reference_usage_agent",
     "evidence_reproducibility": "evidence_agent",
     "adversarial_critic": "adversarial_critic_agent",
     "reflection": "reflection_agent",
@@ -230,7 +236,7 @@ def run_pipeline(run_id: str, pdf_path: str, uploaded_filename: Optional[str] = 
         except NoveltyEvaluationAgentError as exc:
             yield _event("novelty_agent", "error", message=str(exc))
 
-    # --- Stages: the full 10-agent LangGraph review (paper understanding
+    # --- Stages: the full 11-agent LangGraph review (paper understanding
     # through the human-approval interrupt), replacing the old placeholder
     # cards with real graph-driven events. Each judgment agent's output +
     # reflection's flags are persisted to MySQL as they complete (see _db_*
@@ -255,7 +261,7 @@ _review_graph_singleton = None
 
 def _get_review_graph():
     """Builds the compiled LangGraph review graph once per process and reuses
-    it -- constructing it rebuilds all 9 agents (and their LLM client), so
+    it -- constructing it rebuilds all 10 LLM agents (and their LLM client), so
     doing that per uploaded paper would pay that cost on every review."""
     global _review_graph_singleton
     if _review_graph_singleton is None:
@@ -285,6 +291,8 @@ def _summary_message(node_name: str, value: Any) -> str:
         return f"Soundness rating: {value.soundness_rating}."
     if node_name == "citation":
         return f"Citation quality: {value.citation_quality_rating}."
+    if node_name == "reference_usage":
+        return f"Reference usage rating: {value.overall_rating}."
     if node_name == "evidence_reproducibility":
         return f"Overall rating: {value.overall_rating}."
     if node_name == "adversarial_critic":
@@ -307,10 +315,12 @@ def _run_review_graph(run_id: str, parsed_paper: ParsedPaper, reviewed_paper_id:
     revision_pass = 0
 
     # Stage-1 nodes (paper_understanding, literature_rag, figure_table,
-    # methodology, evidence_reproducibility) all start immediately at START --
-    # announce them running up front rather than only on completion, so the
-    # UI shows the parallel fan-out instead of cards jumping straight to done.
-    for node in ("paper_understanding", "literature_rag", "figure_table", "methodology", "evidence_reproducibility"):
+    # reference_usage, methodology, evidence_reproducibility) all start
+    # immediately at START -- announce them running up front rather than
+    # only on completion, so the UI shows the parallel fan-out instead of
+    # cards jumping straight to done.
+    for node in ("paper_understanding", "literature_rag", "figure_table", "reference_usage",
+                 "methodology", "evidence_reproducibility"):
         yield _event(_GRAPH_NODE_TO_STAGE[node], "running", message="Running...")
 
     try:

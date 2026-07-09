@@ -118,6 +118,23 @@ class CitationAssessment(BaseModel):
     reasoning: str
 
 
+class ReferenceUsageVerdict(BaseModel):
+    reference: str   # copied from the paper's own reference list entry this verdict is for
+    cited_in_body: bool                   # does the body text actually engage with it, not just list it?
+    role: Literal[
+        "background", "related_work", "baseline", "method",
+        "dataset", "tool", "claim_support", "not_cited",
+    ]                                      # "not_cited" only when cited_in_body is false
+    usefulness: Literal["low", "medium", "high"]
+    evidence: str   # quote/paraphrase from the body grounding this verdict, or why none was found
+
+
+class ReferenceUsageAssessment(BaseModel):
+    reference_verdicts: List[ReferenceUsageVerdict]   # one entry per reference in the paper's own bibliography
+    overall_rating: Literal["poor", "fair", "good", "excellent"]
+    summary: str
+
+
 class ClaimEvidenceVerdict(BaseModel):
     claim: str    # a specific quantitative claim pulled from the paper's abstract/intro
     verdict: Literal["supported", "unsupported", "partially_supported"]
@@ -199,6 +216,7 @@ class FinalReview(BaseModel):
     questions_for_authors: List[str]
     novelty_analysis: str
     citation_quality: str
+    reference_usage_quality: str
     reproducibility: str
     evidence_mapping: str
     missing_baselines: List[str] = []   # set deterministically from MethodologyAssessment, not re-derived by the LLM
