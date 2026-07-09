@@ -18,11 +18,13 @@ from __future__ import annotations
 import json
 import uuid
 from pathlib import Path
+from typing import Literal, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel
 
-from server.pipeline import check_system_health, query_paper_index, run_pipeline
+from server.pipeline import check_system_health, query_paper_index, resume_with_approval, run_pipeline
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = REPO_ROOT / "data" / "uploads"
@@ -65,6 +67,26 @@ def stream(run_id: str):
             yield f"data: {json.dumps(event)}\n\n"
 
     return StreamingResponse(event_source(), media_type="text/event-stream")
+
+
+class ApprovalRequest(BaseModel):
+    decision: str                      # "approve"/"approved", "reject"/"rejected", "revise"/"revised" -- synonyms normalized graph-side
+    approver: Optional[str] = None
+    comment: Optional[str] = None
+    override_recommendation: Optional[
+        Literal["reject", "weak_reject", "borderline", "weak_accept", "accept"]
+    ] = None                           # only meaningful with a "revised" decision
+
+
+@app.post("/api/approve/{run_id}")
+def approve(run_id: str, body: ApprovalRequest):
+    """Resume a review run parked at the human-approval interrupt with the
+    human's decision; returns the approval record and the (possibly
+    override-rewritten) final review."""
+    result = resume_with_approval(run_id, body.model_dump(exclude_none=True))
+    if "error" in result:
+        raise HTTPException(409, result["error"])
+    return result
 
 
 @app.get("/api/query/{run_id}")

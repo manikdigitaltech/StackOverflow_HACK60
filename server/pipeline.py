@@ -5,10 +5,12 @@ the browser over Server-Sent Events.
 
 Deliberately honest about what exists: parse / figure-vision / RAG-chunk /
 paper-RAG-index / the full 9-agent LangGraph review (paper understanding
-through final review) are real code paths, executed for real, on the real
-uploaded PDF. Only human-in-the-loop approval and MySQL persistence remain
-unbuilt (Phase 2) -- that one stage is emitted with status="not_implemented"
-rather than faked, so the UI never shows work no code actually did.
+through final review, gated by the human-in-the-loop approval interrupt) are
+real code paths, executed for real, on the real uploaded PDF. The review run
+parks at the approval interrupt and stays parked (on the graph's checkpointer,
+keyed by run_id) until resume_with_approval() is called -- the SSE stream ends
+with the run awaiting a human, which is the honest state. Only MySQL
+persistence remains unbuilt (Phase 2).
 """
 from __future__ import annotations
 
@@ -156,11 +158,10 @@ def run_pipeline(run_id: str, pdf_path: str) -> Iterator[Dict[str, Any]]:
 
     # --- Stages: the full 9-agent LangGraph review (paper understanding
     # through final review), replacing the old placeholder cards with real
-    # graph-driven events. ---
+    # graph-driven events. Ends parked at the human-approval interrupt --
+    # _run_review_graph emits an "awaiting_approval" event with the drafted
+    # review; POST /api/approve/{run_id} (server/main.py) resumes it. ---
     yield from _run_review_graph(run_id, parsed_paper)
-
-    # --- Stage that genuinely doesn't exist in the codebase yet (Phase 2) ---
-    yield _event("human_approval", "not_implemented", label="Human-in-the-Loop Approval")
 
     yield _event("pipeline", "complete", total_elapsed_s=round(time.time() - t_start, 2))
 
@@ -229,6 +230,18 @@ def _run_review_graph(run_id: str, parsed_paper: ParsedPaper) -> Iterator[Dict[s
             stream_mode="updates",
         ):
             for node_name, partial_state in update.items():
+                if node_name == "__interrupt__":
+                    # The human-approval gate fired: the run is now parked on
+                    # the checkpointer (keyed by this run_id) awaiting a
+                    # decision via resume_with_approval(). Surface the drafted
+                    # review so the UI can show what needs sign-off.
+                    (intr, ) = partial_state if isinstance(partial_state, (tuple, list)) else (partial_state,)
+                    yield _event(
+                        "human_approval", "awaiting_approval",
+                        message="Review drafted -- awaiting human approval before the recommendation is issued.",
+                        request=_serialize(getattr(intr, "value", intr)),
+                    )
+                    continue
                 if node_name == "prepare_revision":
                     revision_count = partial_state.get("revision_count", 1)
                     yield _event(
@@ -261,6 +274,39 @@ def _run_review_graph(run_id: str, parsed_paper: ParsedPaper) -> Iterator[Dict[s
             "pipeline", "error",
             message=f"Review graph failed: {exc}", trace=traceback.format_exc(limit=5),
         )
+
+
+def resume_with_approval(run_id: str, decision_payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Resume a review run parked at the human-approval interrupt with the
+    human's decision, and return the now-final state. The graph singleton's
+    in-memory checkpointer holds the parked run keyed by run_id, so this only
+    works in the same server process that ran the review -- fine for this
+    demo layer (same caveat as _RUNS itself).
+    """
+    from langgraph.types import Command
+
+    if run_id not in _RUNS:
+        return {"error": f"Unknown run_id {run_id!r} -- upload and stream a review first."}
+
+    graph = _get_review_graph()
+    config = {"configurable": {"thread_id": run_id}}
+
+    # Guard: only resume a run that is actually parked at the approval
+    # interrupt -- resuming a finished/never-started thread would silently
+    # re-invoke the graph from a wrong state.
+    snapshot = graph.get_state(config)
+    if not snapshot.next:
+        return {"error": f"Run {run_id!r} is not awaiting approval (already decided, or the review never reached the approval gate)."}
+
+    result = graph.invoke(Command(resume=decision_payload), config=config)
+
+    approval = result.get("human_approval")
+    final_review = result.get("final_review")
+    return {
+        "run_id": run_id,
+        "human_approval": _serialize(approval) if approval else None,
+        "final_review": _serialize(final_review) if final_review else None,
+    }
 
 
 def _embedding_device() -> str:

@@ -1,7 +1,8 @@
 """
-Assembles the review orchestration graph (Phase 1: no DB persistence, no
-human-in-the-loop interrupt yet -- those are Phase 2). Wires manik's 9 agents
-into one bounded, checkpointed LangGraph run.
+Assembles the review orchestration graph. Wires the 9 review agents into one
+bounded, checkpointed LangGraph run, then gates the final recommendation behind
+a mandatory human-in-the-loop approval interrupt (DB persistence is still a
+separate Phase 2 concern).
 
 Shape:
     START --> paper_understanding --\\
@@ -14,7 +15,10 @@ Shape:
                                                               ready_for_synthesis <-- figure_table       citation/evidence_repro)
                                                                         |
                                                                         v
-                                                                  final_review --> END
+                                                                  final_review --> human_approval --> END
+                                                                                   (interrupt(): pauses
+                                                                                    until a human resumes
+                                                                                    with a decision)
 
 Key point: add_edge()/add_conditional_edges() into the SAME node are
 independent OR-triggers, not a join -- an AND-join needs all sources listed
@@ -67,6 +71,7 @@ def build_review_graph(llm=None, prompt_manager=None, checkpointer=None):
     graph.add_node("prepare_revision", nodes.prepare_revision)
     graph.add_node("ready_for_synthesis", nodes.ready_for_synthesis)
     graph.add_node("final_review", nodes.final_review)
+    graph.add_node("human_approval", nodes.human_approval)
 
     # Stage 1: everything that only needs parsed_paper starts immediately.
     graph.add_edge(START, "paper_understanding")
@@ -107,6 +112,12 @@ def build_review_graph(llm=None, prompt_manager=None, checkpointer=None):
     # AND-join here (see ready_for_synthesis's docstring for why this
     # indirection is necessary rather than two separate edges into final_review).
     graph.add_edge(["figure_table", "ready_for_synthesis"], "final_review")
-    graph.add_edge("final_review", END)
+
+    # Mandatory human-in-the-loop gate: the drafted recommendation is not
+    # "issued" until a human resumes the interrupted run. interrupt() (in
+    # nodes.human_approval) requires a checkpointer + a thread_id in the invoke
+    # config -- both already present -- so the parked run can be resumed later.
+    graph.add_edge("final_review", "human_approval")
+    graph.add_edge("human_approval", END)
 
     return graph.compile(checkpointer=checkpointer or InMemorySaver())

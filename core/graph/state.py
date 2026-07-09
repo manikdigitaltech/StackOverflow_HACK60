@@ -17,6 +17,7 @@ from core.schemas.agent_output_schemas import (
     EvidenceReproducibilityAssessment,
     FigureTableSummary,
     FinalReview,
+    HumanApproval,
     LiteratureContext,
     MethodologyAssessment,
     NoveltyAssessment,
@@ -51,3 +52,9 @@ class ReviewGraphState(TypedDict, total=False):
 
     # --- Stage 4: synthesis ---
     final_review: FinalReview
+
+    # --- Stage 5: human-in-the-loop approval (gates the final recommendation) ---
+    # Set once a human resumes the interrupted run with their decision. A
+    # "revised" decision with an override_recommendation also rewrites
+    # final_review.final_recommendation (see nodes.human_approval).
+    human_approval: HumanApproval
