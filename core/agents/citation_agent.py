@@ -20,12 +20,17 @@ _MAX_CHARS_PER_REFERENCE = 180
 _MAX_CHARS_PER_LIT_CHUNK = 400
 
 
+_SOURCE_LABELS = {"semantic_scholar": "via Semantic Scholar", "arxiv": "via arXiv"}
+
+
 def _format_literature_context(context: LiteratureContext) -> str:
     if not context.matches:
         return "No related literature was retrieved."
     lines = []
     for m in context.matches:
-        lines.append(f'- "{m.title}" ({m.year}): {m.chunk_text[:_MAX_CHARS_PER_LIT_CHUNK]}')
+        label = _SOURCE_LABELS.get(m.source)
+        tag = f" [{label}]" if label else ""
+        lines.append(f'- "{m.title}" ({m.year}){tag}: {m.chunk_text[:_MAX_CHARS_PER_LIT_CHUNK]}')
     return "\n".join(lines)
 
 

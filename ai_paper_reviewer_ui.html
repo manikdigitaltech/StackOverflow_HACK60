@@ -1195,6 +1195,17 @@
       background: var(--orange);
     }
 
+    .status-awaiting {
+      background: rgba(251, 191, 63, 0.12);
+      color: var(--orange);
+    }
+
+    .status-awaiting .sd {
+      background: var(--orange);
+      box-shadow: 0 0 6px var(--orange);
+      animation: blinkDot 1.3s infinite;
+    }
+
     .status-revision {
       background: rgba(251, 113, 133, 0.12);
       color: var(--red);
@@ -2121,7 +2132,7 @@
       error: '<span class="status-badge status-error"><span class="sd"></span>Error</span>',
       skipped: '<span class="status-badge status-skipped"><span class="sd"></span>Skipped</span>',
       not_available: '<span class="status-badge status-skipped"><span class="sd"></span>Not Available</span>',
-      awaiting_approval: '<span class="status-badge status-running"><span class="sd"></span>Awaiting Approval</span>',
+      awaiting_approval: '<span class="status-badge status-awaiting"><span class="sd"></span>Awaiting Approval</span>',
       waiting: '<span class="status-badge status-waiting"><span class="sd"></span>Waiting</span>',
     };
 
@@ -2139,8 +2150,9 @@
       if (latest.status === 'error') return 'Error: ' + (latest.message || 'unknown error');
       if (latest.status === 'skipped') return latest.message || 'Skipped';
       if (latest.status === 'not_available') return latest.message || 'Not available';
-      if (latest.status === 'awaiting_approval') return 'Awaiting your decision -- see the Human Approval tab.';
+      if (latest.status === 'awaiting_approval') return 'Drafted review parked -- approve, revise, or reject it in the Human Approval tab.';
       if (latest.status === 'done') {
+        if (card.key === 'human_approval') return latest.message || 'Decision recorded.';
         if (card.key === 'parse') return `Segmented into ${latest.section_names.length} section(s), ${latest.num_tables} table(s), ${latest.num_figures} figure(s).`;
         if (card.key === 'vision') return `Described ${latest.num_analyzed} figure(s) with the local vision model.`;
         if (card.key === 'rag') {
@@ -2187,7 +2199,10 @@
       document.getElementById('tpbFill').style.width = pct + '%';
       document.getElementById('tpbPct').textContent = pct + '%';
       const running = CARDS.find(c => statusOf(c) === 'running');
-      document.getElementById('tpbCurrent').textContent = running ? ('● ' + running.label + ' running') : (pct === 100 ? '● Pipeline finished' : '● Idle');
+      const awaiting = CARDS.some(c => statusOf(c) === 'awaiting_approval');
+      document.getElementById('tpbCurrent').textContent = running ? ('● ' + running.label + ' running')
+        : awaiting ? '● Awaiting human approval'
+        : (pct === 100 ? '● Pipeline finished' : '● Idle');
     }
 
     // ============================================================
@@ -2235,6 +2250,11 @@
           ? 'Review drafted -- awaiting human approval before the recommendation is issued.'
           : `All stages finished in ${event.total_elapsed_s}s.`;
       }
+      // human_approval's "done" event is synthesized client-side by
+      // handleApprovalAction() (no real SSE event follows the interrupt) and
+      // its message IS the decision -- unlike other stages' bare "done", it's
+      // the one piece of information this line actually needs to carry.
+      if (event.stage === 'human_approval' && event.status === 'done') return event.message || '';
       if (event.status === 'done') return '';
       return card ? summaryFor(card) : (event.message || '');
     }
@@ -2522,6 +2542,9 @@
           renderFinalReviewView();
           renderApprovalView();
         }
+        if (event.stage === 'human_approval' && event.status === 'awaiting_approval') {
+          renderApprovalView();   // re-render so the awaiting banner + live buttons appear
+        }
         if (card) {
           lastUpdatedCardKey = card.key;
           if (selectedCardKey === null) renderDockedPanel(card.key);   // auto-follow: always show the latest activity
@@ -2756,13 +2779,29 @@
       }
       if (card.key === 'human_approval') {
         const e = liveEvents['human_approval'];
-        if (!e || e.status !== 'awaiting_approval') return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting for the review to be drafted...'}</p></div>`;
-        const req = e.request || {};
-        return `
-        <div class="sp-block"><h5>Drafted recommendation: ${titleCase(req.draft_recommendation || '')} (confidence: ${titleCase(req.draft_confidence || '')})</h5>
-        <p>The review run is genuinely parked here (LangGraph interrupt()) until a human decides -- nothing downstream happens until then.</p></div>
-        <div class="sp-block"><h5>Summary</h5><p>${escapeHtml(req.paper_summary || '')}</p></div>
-        See the "Human Approval" tab in the top nav to approve, request changes, or reject.`;
+        if (!e) return `<div class="sp-block"><p>Waiting for the review to reach the approval gate...</p></div>`;
+        if (e.status === 'awaiting_approval') {
+          const req = e.request || {};
+          return `
+          <div class="sp-block"><h5>Drafted recommendation: ${titleCase(req.draft_recommendation || '?')} (confidence: ${titleCase(req.draft_confidence || '?')})</h5>
+          <p>The review run is genuinely parked here (LangGraph interrupt()) until a human decides -- nothing downstream happens until then.</p></div>
+          <div class="sp-block"><h5>Summary</h5><p>${escapeHtml(req.paper_summary || '')}</p></div>
+          See the "Human Approval" tab in the top nav to approve, request changes, or reject.`;
+        }
+        // Set client-side by handleApprovalAction() right after a decision is
+        // recorded -- the SSE stream itself never emits a second event for
+        // this stage (resume happens over POST /api/approval/{run_id}, not
+        // over the stream), so this is the only way the docked panel (and
+        // this stage's card) can reflect the decision without a page reload.
+        if (e.status === 'done' && e.approval) {
+          const a = e.approval;
+          return `
+          <div class="sp-block"><h5>Decision: ${titleCase(a.decision)}</h5>
+            ${a.override_recommendation ? `<p>Recommendation overridden to: ${titleCase(a.override_recommendation)}</p>` : ''}
+            ${a.comment ? `<p>Comment: ${escapeHtml(a.comment)}</p>` : ''}
+            ${a.decided_at ? `<p>Decided at: ${escapeHtml(a.decided_at)}</p>` : ''}</div>`;
+        }
+        return `<div class="sp-block"><p>${escapeHtml(e.message || e.status)}</p></div>`;
       }
       return `<div class="sp-block"><p>${escapeHtml(JSON.stringify(liveEvents[card.stageKeys[0]] || {}, null, 2))}</p></div>`;
     }
@@ -2915,16 +2954,20 @@
       const doc = document.getElementById('approvalDoc');
       if (!e || e.status !== 'done' || !e.result) return;
       const r = e.result;
-      doc.innerHTML = `
+      const approvalEv = liveEvents['human_approval'];
+      let banner = '';
+      if (approvalEv && approvalEv.status === 'awaiting_approval') {
+        banner = `<p style="color:var(--orange);font-weight:600;">⏸ The review run is parked at the approval gate -- the recommendation below will not be issued until you decide.</p>`;
+      } else if (approvalEv && approvalEv.status === 'done' && approvalEv.approval) {
+        const a = approvalEv.approval;
+        banner = `<p style="color:var(--green);font-weight:600;">✓ Decision recorded: ${escapeHtml(a.decision)}${a.override_recommendation ? ` (recommendation overridden to ${escapeHtml(a.override_recommendation)})` : ''}${a.comment ? ` -- "${escapeHtml(a.comment)}"` : ''}</p>`;
+      }
+      doc.innerHTML = `${banner}
         <h3>Summary</h3><p>${escapeHtml(r.paper_summary)}</p>
         <h3>Strengths</h3><ul>${r.strengths.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>'}</ul>
         <h3>Weaknesses</h3><ul>${r.weaknesses.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>'}</ul>
         <h3>Recommendation</h3><p>${titleCase(r.final_recommendation)} (confidence: ${titleCase(r.confidence)})</p>`;
     }
-
-    // UI action -> the decision vocabulary core.graph.nodes._normalize_decision
-    // and server/main.py's ApprovalRequest actually accept.
-    const APPROVAL_DECISION = { approve: 'approve', changes: 'revise', reject: 'reject' };
 
     // Real persistence: POSTs to server/main.py's /api/approval/{run_id},
     // which resumes the graph genuinely parked at the human_approval
@@ -2933,34 +2976,56 @@
     // approval_repository.py) -- not a stub. Called both from this Human
     // Approval view's own buttons and from the Live Activity timeline's
     // inline buttons on the human_approval node -- one function, one real
-    // code path. Field names below (approver/comment/override_recommendation)
-    // must match ApprovalRequest exactly -- Pydantic silently drops unknown
-    // extra fields rather than erroring, so a mismatch here would look like
-    // it worked while quietly discarding the approver/comment every time.
+    // code path. Field names in the POST body (approver/comment/
+    // override_recommendation) must match ApprovalRequest exactly -- Pydantic
+    // silently drops unknown extra fields rather than erroring, so a mismatch
+    // here would look like it worked while quietly discarding data every time.
     async function handleApprovalAction(action) {
-      if (!runId) { alert('No active run -- upload a paper first.'); return; }
-      const decision = APPROVAL_DECISION[action];
-      const comment = document.getElementById('approvalComment').value.trim() || null;
+      const approvalEv = liveEvents['human_approval'];
+      if (!runId || !approvalEv || approvalEv.status !== 'awaiting_approval') {
+        alert(approvalEv && approvalEv.status === 'done'
+          ? 'A decision was already recorded for this run.'
+          : 'No review is awaiting approval yet -- wait for the pipeline to reach the approval gate.');
+        return;
+      }
+
+      const body = { decision: { approve: 'approved', changes: 'revised', reject: 'rejected' }[action], approver: 'dashboard-user' };
+      const comment = document.getElementById('approvalComment').value.trim();
+      if (comment) body.comment = comment;
+      if (action === 'changes') {
+        const override = prompt('Override the recommendation? Enter one of: accept, weak_accept, borderline, weak_reject, reject -- or leave blank to record your comment without overriding.', '');
+        if (override === null) return;   // human cancelled -- leave the run parked
+        const cleaned = override.trim().toLowerCase();
+        if (cleaned) {
+          if (!['accept', 'weak_accept', 'borderline', 'weak_reject', 'reject'].includes(cleaned)) {
+            alert(`"${override}" is not a valid recommendation.`); return;
+          }
+          body.override_recommendation = cleaned;
+        }
+      }
+
       try {
         const resp = await fetch(`/api/approval/${runId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ decision, approver: 'dashboard-user', comment }),
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         });
         const data = await resp.json();
-        if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
+        if (!resp.ok) { alert(data.detail || 'Approval failed.'); return; }
 
+        const decided = data.human_approval || {};
+        liveEvents['human_approval'] = {
+          stage: 'human_approval', status: 'done', ts: Date.now() / 1000,
+          message: `Decision: ${decided.decision}${decided.override_recommendation ? ` (overridden to ${decided.override_recommendation})` : ''}`,
+          approval: decided,
+        };
+        if (data.final_review) liveEvents['final_report'].result = data.final_review;  // override case: keep exports/views consistent
         approvalRecordedFor = runId;
-        const humanNode = timelineNodes['human_approval'];
-        if (humanNode) {
-          const decided = (data.human_approval && data.human_approval.decision) || decision;
-          humanNode.status = 'done';
-          humanNode.el.className = 'tl-node tl-s-done';
-          humanNode.el.querySelector('.tl-status-text').textContent = decided;
-          renderApprovalControls(humanNode.el.querySelector('.tl-approval'), { stage: 'human_approval', status: 'awaiting_approval' });
-        }
+        appendActivity(liveEvents['human_approval'], CARDS.find(c => c.key === 'human_approval'));
         document.querySelectorAll('.approval-actions button').forEach(b => b.disabled = true);
-        alert(`Recorded: ${titleCase(decision)}. This decision is now saved in human_approvals for run ${runId}.`);
+        renderCards();
+        updateProgressBar();
+        renderFinalReviewView();
+        renderApprovalView();
+        alert(`Recorded: ${titleCase(decided.decision || body.decision)}. This decision is now saved in human_approvals for run ${runId}.`);
       } catch (err) {
         alert(`Could not record this decision: ${err.message}\n\n(The review itself is unaffected -- this only means the approval record wasn't saved. Check that MySQL is reachable.)`);
       }

@@ -84,6 +84,20 @@ rather than erroring the whole review over one missing optional-enrichment sourc
 *(Rewritten during the RAG merge — the original implementation depended on a
 retired single-index retriever; see `RAG_ARCHITECTURE.md`.)*
 
+**Live-source merge (on by default, disable via
+`RAG_SETTINGS.live_sources.enable_arxiv` / `enable_semantic_scholar`)**:
+the agent supplements Index B hits with live results from
+`core.rag.retrieval.tools.search_arxiv` / `search_semantic_scholar` —
+the seam those clients were already built behind. Index B matches always
+take priority; live results only fill remaining slots up to `top_k`,
+deduped by normalized title. Each `LiteratureMatch` carries a `source`
+field (`"literature_index"` / `"arxiv"` / `"semantic_scholar"`) so
+`NoveltyAgent` and `CitationAgent`'s formatters can label a live web hit
+(`[via arXiv]`) distinctly from a curated corpus hit in the prompt — a
+live hit is weaker "not cited" evidence for Citation's coverage-gap check
+than a curated one. Both live clients are resilient by design (never
+raise, degrade to `[]`), so an outage never breaks the run.
+
 ### `MethodologyAgent`
 
 Evaluates methodological soundness — baseline comparisons, ablation

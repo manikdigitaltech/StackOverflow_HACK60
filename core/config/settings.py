@@ -79,6 +79,14 @@ class ReflectionSettings(BaseModel):
     max_revision_passes: int = 1  # bounded self-critique loop; 1 keeps demo timing sane
 
 
+class LiveSourcesSettings(BaseModel):
+    # Semantic Scholar's public search API works unauthenticated but shares a
+    # heavily rate-limited pool (~100 req/5min across all unauthenticated
+    # traffic); a free API key raises that to a per-key limit. Optional --
+    # the client already degrades to [] on any non-2xx response either way.
+    semantic_scholar_api_key: Optional[str] = None
+
+
 class IngestionSettings(BaseModel):
     peerread_data_path: str = "./data/peerread_raw"   # cloned allenai/PeerRead repo location
     peerread_venues: list[str] = ["iclr_2017", "acl_2017"]  # keep small for a fast local build
@@ -98,6 +106,7 @@ class AppSettings(BaseSettings):
     faiss: FAISSSettings = FAISSSettings()
     reflection: ReflectionSettings = ReflectionSettings()
     ingestion: IngestionSettings = IngestionSettings()
+    live_sources: LiveSourcesSettings = LiveSourcesSettings()
     parsing: ParsingSettings = ParsingSettings()
     log_level: str = "INFO"
 
