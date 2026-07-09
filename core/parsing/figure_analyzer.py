@@ -26,6 +26,7 @@ from core.llm.llm_provider import get_vision_llm
 from core.llm.prompt_manager import PromptManager
 from core.parsing.figure_cropper import crop_figure
 from core.schemas.agent_output_schemas import Figure, ParsedPaper
+from core.utils.guardrails import sanitize_pdf_text
 
 logger = logging.getLogger(__name__)
 
@@ -93,4 +94,8 @@ def _describe(llm, prompt_manager: PromptManager, image_path: str, caption: Opti
     ]))
 
     response = llm.invoke(messages)
-    return response.content
+    # The VLM reads raw pixels, so instructions rendered *inside* a figure
+    # image reach us through its description -- a path docling_parser's
+    # field-level sanitization never sees. Sanitize before it hits any prompt.
+    description, _ = sanitize_pdf_text(response.content)
+    return description

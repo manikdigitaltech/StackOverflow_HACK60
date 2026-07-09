@@ -14,6 +14,8 @@ it -- so downstream code never has to think about this.
 """
 import re
 import logging
+from functools import lru_cache
+from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
 logger = logging.getLogger("paper_reviewer.guardrails")
@@ -89,20 +91,55 @@ def format_secure_payload(tag_name: str, raw_content: str) -> str:
 # 3. OUTPUT GUARDRAILS (POST-LLM VERIFICATION)
 # ==========================================
 
+# Legacy literal leak markers, kept as an always-on floor and as the fallback
+# if prompts.yaml can't be read at runtime.
+_FALLBACK_LEAK_SIGNATURES = (
+    "You are an expert ICLR/NeurIPS area chair",
+    "output strictly as JSON",
+)
+
+_PROMPTS_YAML = Path(__file__).resolve().parents[1] / "config" / "prompts.yaml"
+
+
+@lru_cache(maxsize=1)
+def _prompt_leak_signatures() -> Tuple[str, ...]:
+    """The opening line of every system prompt in prompts.yaml. Deriving the
+    signatures from the live templates (instead of hardcoding them) means the
+    leak check can't silently go stale when a prompt is reworded. Lines under
+    40 chars are skipped -- too generic to distinguish a leak from a review
+    that happens to use similar words."""
+    try:
+        import yaml
+        templates = yaml.safe_load(_PROMPTS_YAML.read_text(encoding="utf-8")) or {}
+    except Exception as exc:
+        logger.warning("Could not derive leak signatures from prompts.yaml (%s); using fallback literals only.", exc)
+        return ()
+
+    signatures = []
+    for template in templates.values():
+        system = template.get("system") if isinstance(template, dict) else None
+        for line in (system or "").splitlines():
+            line = line.strip()
+            if len(line) >= 40:
+                signatures.append(line)
+                break
+    return tuple(signatures)
+
+
 def verify_output_safety(llm_output: str) -> bool:
     """
-    Evaluates generated output strings to ensure the local model wasn't hijacked 
+    Evaluates generated output strings to ensure the local model wasn't hijacked
     into leaking system text or generating restricted conversational text.
     """
     if not llm_output:
         return False
-    
+
     # If the local model suddenly prints systemic instruction headers or leaks instructions
-    leaks_instructions = "You are an expert ICLR/NeurIPS area chair" in llm_output or "output strictly as JSON" in llm_output
-    if leaks_instructions:
-        logger.error("Post-LLM Guardrail Failure: Model leaked internal prompt patterns.")
-        return False
-        
+    for signature in _FALLBACK_LEAK_SIGNATURES + _prompt_leak_signatures():
+        if signature in llm_output:
+            logger.error("Post-LLM Guardrail Failure: Model leaked internal prompt patterns.")
+            return False
+
     return True
 
 

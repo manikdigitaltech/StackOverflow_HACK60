@@ -9,6 +9,7 @@ import logging
 
 from core.config.rag_settings import RAG_SETTINGS
 from core.rag.models import RetrievalResult
+from core.utils.guardrails import sanitize_pdf_text
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +48,10 @@ def search_arxiv(
     ns = {"atom": "http://www.w3.org/2005/Atom"}
     results: list[RetrievalResult] = []
     for rank, entry in enumerate(root.findall("atom:entry", ns)[:k]):
-        title = " ".join((entry.findtext("atom:title", "", ns) or "").split())
-        summary = " ".join((entry.findtext("atom:summary", "", ns) or "").split())
+        # Live-source text bypasses the PDF parser (where sanitization normally
+        # runs) but still lands in agent prompts -- sanitize it here.
+        title, _ = sanitize_pdf_text(" ".join((entry.findtext("atom:title", "", ns) or "").split()))
+        summary, _ = sanitize_pdf_text(" ".join((entry.findtext("atom:summary", "", ns) or "").split()))
         if not title:
             continue
         results.append(RetrievalResult(
