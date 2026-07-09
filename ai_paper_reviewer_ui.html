@@ -3235,6 +3235,7 @@
       }
     }
     loadSystemHealth();
+    setInterval(loadSystemHealth, 15000); // re-probe every 15s so the strip reflects live state, not just page-load state
 
     // ---- Topbar "N/M pipeline stages implemented" -- computed from the
     // real CARDS list (every card except human_approval reflects a real,
