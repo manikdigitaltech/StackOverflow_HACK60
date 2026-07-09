@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <text x="60" y="70" font-size="36" font-weight="700" fill="#0f172a">Figures &amp; Tables — Caption Reading vs. Real Vision</text>
+  <text x="60" y="104" font-size="19" fill="#64748b">Two deliberate paths: a text agent that always works, and a VLM that actually looks at the pixels</text>
+
+  <!-- Path 1: caption -->
+  <rect x="60" y="160" width="1160" height="150" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="100" y="200" font-size="20" font-weight="700" fill="#1e3a8a">Path 1 — FigureTableAgent (text only, always available)</text>
+  <rect x="100" y="220" width="260" height="60" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="230" y="245" font-size="15" fill="#334155" text-anchor="middle">Caption text +</text>
+  <text x="230" y="267" font-size="15" fill="#334155" text-anchor="middle">table markdown</text>
+  <line x1="360" y1="250" x2="430" y2="250" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+  <rect x="440" y="220" width="260" height="60" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="570" y="245" font-size="15" fill="#334155" text-anchor="middle">Text LLM</text>
+  <text x="570" y="267" font-size="15" fill="#334155" text-anchor="middle">(qwen2.5:7b)</text>
+  <line x1="700" y1="250" x2="770" y2="250" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+  <rect x="780" y="220" width="380" height="60" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="970" y="245" font-size="15" fill="#334155" text-anchor="middle">Assessment of what the captions SAY</text>
+  <text x="970" y="267" font-size="15" fill="#334155" text-anchor="middle">the figures show</text>
+
+  <!-- Path 2: VLM -->
+  <rect x="60" y="350" width="1160" height="230" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="100" y="390" font-size="20" font-weight="700" fill="#4c1d95">Path 2 — Vision analysis (optional, off by default)</text>
+
+  <rect x="100" y="420" width="200" height="80" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="200" y="450" font-size="15" fill="#334155" text-anchor="middle">Figure bbox + page</text>
+  <text x="200" y="472" font-size="14" fill="#64748b" text-anchor="middle">from Docling parse</text>
+  <line x1="300" y1="460" x2="360" y2="460" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <rect x="370" y="420" width="200" height="80" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="470" y="450" font-size="15" fill="#334155" text-anchor="middle">Crop to PNG</text>
+  <text x="470" y="472" font-size="14" fill="#64748b" text-anchor="middle">PyMuPDF, coord-flipped</text>
+  <line x1="570" y1="460" x2="630" y2="460" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <rect x="640" y="420" width="220" height="80" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="750" y="450" font-size="15" fill="#334155" text-anchor="middle">Vision LLM</text>
+  <text x="750" y="472" font-size="14" fill="#64748b" text-anchor="middle">qwen2.5vl:7b, local Ollama</text>
+  <line x1="860" y1="460" x2="920" y2="460" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <rect x="930" y="420" width="250" height="80" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="1055" y="450" font-size="15" fill="#334155" text-anchor="middle">Description of what the</text>
+  <text x="1055" y="472" font-size="15" fill="#334155" text-anchor="middle">figure ACTUALLY shows</text>
+
+  <text x="100" y="545" font-size="15" fill="#64748b">Separate get_vision_llm() factory — vision can be toggled off (VISION__ENABLED) without touching the text pipeline at all.</text>
+
+  <!-- Bottom note -->
+  <rect x="60" y="615" width="1160" height="60" rx="12" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+  <text x="640" y="640" font-size="16" font-weight="600" fill="#92400e" text-anchor="middle">Why both? Captions can oversell results — the VLM verifies the caption against the actual image,</text>
+  <text x="640" y="662" font-size="16" font-weight="600" fill="#92400e" text-anchor="middle">while the caption path keeps the pipeline fully functional on machines without a vision model.</text>
+</svg>

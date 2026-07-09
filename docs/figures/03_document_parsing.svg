@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <text x="60" y="70" font-size="36" font-weight="700" fill="#0f172a">Scientific Document Understanding</text>
+  <text x="60" y="104" font-size="19" fill="#64748b">Turning a raw PDF into one clean, structured object every agent can consume</text>
+
+  <!-- PDF -->
+  <rect x="60" y="290" width="170" height="100" rx="12" fill="#f1f5f9" stroke="#475569" stroke-width="2"/>
+  <text x="145" y="332" font-size="20" font-weight="600" fill="#0f172a" text-anchor="middle">PDF</text>
+  <text x="145" y="360" font-size="14" fill="#64748b" text-anchor="middle">any research paper</text>
+
+  <line x1="230" y1="340" x2="290" y2="340" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- Safety check -->
+  <rect x="300" y="290" width="200" height="100" rx="12" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+  <text x="400" y="325" font-size="17" font-weight="600" fill="#92400e" text-anchor="middle">Page-cap check</text>
+  <text x="400" y="350" font-size="14" fill="#334155" text-anchor="middle">PyMuPDF, cheap &amp; fast</text>
+  <text x="400" y="372" font-size="14" fill="#334155" text-anchor="middle">caps at 60 pages</text>
+
+  <line x1="500" y1="340" x2="560" y2="340" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- Docling -->
+  <rect x="570" y="270" width="240" height="140" rx="12" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="690" y="305" font-size="18" font-weight="600" fill="#1e3a8a" text-anchor="middle">Docling Converter</text>
+  <text x="690" y="333" font-size="15" fill="#334155" text-anchor="middle">Layout analysis</text>
+  <text x="690" y="356" font-size="15" fill="#334155" text-anchor="middle">TableFormer (table structure)</text>
+  <text x="690" y="379" font-size="15" fill="#334155" text-anchor="middle">OCR only when needed</text>
+
+  <!-- Three parallel outputs -->
+  <line x1="810" y1="310" x2="880" y2="215" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+  <line x1="810" y1="340" x2="880" y2="340" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+  <line x1="810" y1="370" x2="880" y2="465" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <rect x="890" y="160" width="240" height="100" rx="12" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="1010" y="195" font-size="16" font-weight="600" fill="#1e3a8a" text-anchor="middle">Section Segmenter</text>
+  <text x="1010" y="220" font-size="14" fill="#334155" text-anchor="middle">headings → 13 canonical names</text>
+  <text x="1010" y="242" font-size="14" fill="#334155" text-anchor="middle">title + abstract detection</text>
+
+  <rect x="890" y="290" width="240" height="100" rx="12" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="1010" y="325" font-size="16" font-weight="600" fill="#1e3a8a" text-anchor="middle">Reference Extractor</text>
+  <text x="1010" y="350" font-size="14" fill="#334155" text-anchor="middle">structured entries + year</text>
+  <text x="1010" y="372" font-size="14" fill="#334155" text-anchor="middle">for the Citation Agent</text>
+
+  <rect x="890" y="420" width="240" height="100" rx="12" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="1010" y="455" font-size="16" font-weight="600" fill="#1e3a8a" text-anchor="middle">Figures &amp; Tables</text>
+  <text x="1010" y="480" font-size="14" fill="#334155" text-anchor="middle">bbox + caption + markdown</text>
+  <text x="1010" y="502" font-size="14" fill="#334155" text-anchor="middle">(pixels cropped on demand)</text>
+
+  <!-- ParsedPaper -->
+  <path d="M 1010 260 L 1010 275" fill="none" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="1130" y1="210" x2="1190" y2="340" stroke="#475569" stroke-width="0" />
+  <path d="M 1130 340 L 1170 340 L 1170 590 L 700 590 L 660 590" fill="none" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <rect x="330" y="550" width="320" height="90" rx="12" fill="#d1fae5" stroke="#059669" stroke-width="2"/>
+  <text x="490" y="586" font-size="19" font-weight="600" fill="#065f46" text-anchor="middle">ParsedPaper</text>
+  <text x="490" y="614" font-size="15" fill="#334155" text-anchor="middle">one schema consumed by all 10 agents</text>
+
+  <text x="60" y="690" font-size="15" fill="#64748b">Sanitization runs here too: every text field is cleaned of hidden prompt-injection content before agents see it</text>
+</svg>

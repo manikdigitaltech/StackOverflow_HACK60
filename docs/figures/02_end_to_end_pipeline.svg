@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <text x="60" y="70" font-size="36" font-weight="700" fill="#0f172a">End-to-End Review Pipeline</text>
+  <text x="60" y="104" font-size="19" fill="#64748b">What happens from PDF upload to a final, human-approved verdict</text>
+
+  <!-- Row 1 -->
+  <rect x="60" y="170" width="260" height="110" rx="12" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="190" y="205" font-size="18" font-weight="600" fill="#1e3a8a" text-anchor="middle">1 · Upload &amp; Parse</text>
+  <text x="190" y="234" font-size="15" fill="#334155" text-anchor="middle">Docling: layout, OCR, tables,</text>
+  <text x="190" y="256" font-size="15" fill="#334155" text-anchor="middle">figures, sections, references</text>
+
+  <line x1="320" y1="225" x2="390" y2="225" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <rect x="400" y="170" width="260" height="110" rx="12" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="530" y="205" font-size="18" font-weight="600" fill="#991b1b" text-anchor="middle">2 · Guardrails</text>
+  <text x="530" y="234" font-size="15" fill="#334155" text-anchor="middle">Sanitize untrusted PDF text —</text>
+  <text x="530" y="256" font-size="15" fill="#334155" text-anchor="middle">defang prompt-injection attacks</text>
+
+  <line x1="660" y1="225" x2="730" y2="225" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <rect x="740" y="170" width="260" height="110" rx="12" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="870" y="205" font-size="18" font-weight="600" fill="#1e3a8a" text-anchor="middle">3 · Build RAG Indexes</text>
+  <text x="870" y="234" font-size="15" fill="#334155" text-anchor="middle">Paper index (hybrid) +</text>
+  <text x="870" y="256" font-size="15" fill="#334155" text-anchor="middle">literature corpus (PeerRead)</text>
+
+  <line x1="1000" y1="225" x2="1070" y2="225" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <rect x="1080" y="170" width="150" height="110" rx="12" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="1155" y="212" font-size="18" font-weight="600" fill="#1e3a8a" text-anchor="middle">4 · Vision</text>
+  <text x="1155" y="240" font-size="14" fill="#334155" text-anchor="middle">VLM reads figures</text>
+  <text x="1155" y="260" font-size="14" fill="#334155" text-anchor="middle">&amp; tables (optional)</text>
+
+  <!-- Down connector -->
+  <path d="M 1155 280 L 1155 330 L 190 330 L 190 370" fill="none" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- Row 2 -->
+  <rect x="60" y="380" width="260" height="110" rx="12" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="190" y="415" font-size="18" font-weight="600" fill="#4c1d95" text-anchor="middle">5 · Specialist Agents</text>
+  <text x="190" y="444" font-size="15" fill="#334155" text-anchor="middle">Novelty · Methodology ·</text>
+  <text x="190" y="466" font-size="15" fill="#334155" text-anchor="middle">Citation · Evidence (parallel)</text>
+
+  <line x1="320" y1="435" x2="390" y2="435" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <rect x="400" y="380" width="260" height="110" rx="12" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="530" y="415" font-size="18" font-weight="600" fill="#4c1d95" text-anchor="middle">6 · Self-Reflection</text>
+  <text x="530" y="444" font-size="15" fill="#334155" text-anchor="middle">Critic + verifier check the work;</text>
+  <text x="530" y="466" font-size="15" fill="#334155" text-anchor="middle">agents re-run once if flagged</text>
+
+  <line x1="660" y1="435" x2="730" y2="435" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <rect x="740" y="380" width="260" height="110" rx="12" fill="#d1fae5" stroke="#059669" stroke-width="2"/>
+  <text x="870" y="415" font-size="18" font-weight="600" fill="#065f46" text-anchor="middle">7 · Final Review</text>
+  <text x="870" y="444" font-size="15" fill="#334155" text-anchor="middle">Structured report + 5-way</text>
+  <text x="870" y="466" font-size="15" fill="#334155" text-anchor="middle">rating + confidence</text>
+
+  <line x1="1000" y1="435" x2="1070" y2="435" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <rect x="1080" y="380" width="150" height="110" rx="12" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+  <text x="1155" y="422" font-size="18" font-weight="600" fill="#92400e" text-anchor="middle">8 · Human</text>
+  <text x="1155" y="446" font-size="18" font-weight="600" fill="#92400e" text-anchor="middle">Approval</text>
+  <text x="1155" y="472" font-size="14" fill="#334155" text-anchor="middle">pipeline pauses</text>
+
+  <!-- Rebuttal loop -->
+  <path d="M 1155 490 L 1155 560 L 640 560" fill="none" stroke="#d97706" stroke-width="2.5" stroke-dasharray="8 5"/>
+  <path d="M 640 560 L 190 560 L 190 528" fill="none" stroke="#d97706" stroke-width="2.5" stroke-dasharray="8 5" marker-end="url(#arr)"/>
+  <rect x="440" y="530" width="400" height="60" rx="12" fill="#fff7ed" stroke="#d97706" stroke-width="2"/>
+  <text x="640" y="556" font-size="17" font-weight="600" fill="#92400e" text-anchor="middle">Author rebuttal → full re-review</text>
+  <text x="640" y="578" font-size="14" fill="#64748b" text-anchor="middle">verdict can change, e.g. weak reject → weak accept</text>
+  <text x="190" y="620" font-size="14" fill="#92400e" text-anchor="middle">agents re-read the paper</text>
+  <text x="190" y="640" font-size="14" fill="#92400e" text-anchor="middle">with the rebuttal in context</text>
+
+  <text x="60" y="690" font-size="15" fill="#64748b">Every stage streams live to the dashboard over Server-Sent Events (SSE)</text>
+</svg>

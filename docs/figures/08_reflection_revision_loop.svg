@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#475569"/>
+    </marker>
+    <marker id="arrO" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#d97706"/>
+    </marker>
+  </defs>
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <text x="60" y="70" font-size="36" font-weight="700" fill="#0f172a">Self-Reflection — The Review Reviews Itself</text>
+  <text x="60" y="104" font-size="19" fill="#64748b">A real revision loop with targeted feedback, not a cosmetic re-run — verdicts genuinely change</text>
+
+  <!-- Four assessments -->
+  <rect x="60" y="170" width="250" height="70" rx="12" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="185" y="212" font-size="17" font-weight="600" fill="#4c1d95" text-anchor="middle">Novelty</text>
+  <rect x="360" y="170" width="250" height="70" rx="12" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="485" y="212" font-size="17" font-weight="600" fill="#4c1d95" text-anchor="middle">Methodology</text>
+  <rect x="660" y="170" width="250" height="70" rx="12" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="785" y="212" font-size="17" font-weight="600" fill="#4c1d95" text-anchor="middle">Citation</text>
+  <rect x="960" y="170" width="250" height="70" rx="12" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="1085" y="212" font-size="17" font-weight="600" fill="#4c1d95" text-anchor="middle">Evidence &amp; Repro</text>
+
+  <line x1="185" y1="240" x2="540" y2="310" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="485" y1="240" x2="590" y2="310" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="785" y1="240" x2="690" y2="310" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="1085" y1="240" x2="740" y2="310" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Reflection -->
+  <rect x="465" y="316" width="350" height="90" rx="12" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+  <text x="640" y="350" font-size="19" font-weight="600" fill="#92400e" text-anchor="middle">Reflection Agent</text>
+  <text x="640" y="376" font-size="15" fill="#334155" text-anchor="middle">consistency check · hallucination detection ·</text>
+  <text x="640" y="396" font-size="15" fill="#334155" text-anchor="middle">evidence validation</text>
+
+  <!-- Decision -->
+  <line x1="640" y1="406" x2="640" y2="446" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+  <polygon points="640,452 760,505 640,558 520,505" fill="#fff7ed" stroke="#d97706" stroke-width="2"/>
+  <text x="640" y="498" font-size="16" font-weight="600" fill="#92400e" text-anchor="middle">needs</text>
+  <text x="640" y="520" font-size="16" font-weight="600" fill="#92400e" text-anchor="middle">revision?</text>
+
+  <!-- Yes branch (loop) -->
+  <path d="M 520 505 L 185 505 L 185 435" fill="none" stroke="#d97706" stroke-width="2.5" stroke-dasharray="8 5"/>
+  <path d="M 185 435 L 185 268" fill="none" stroke="#d97706" stroke-width="2.5" stroke-dasharray="8 5" marker-end="url(#arrO)"/>
+  <rect x="75" y="375" width="220" height="60" rx="10" fill="#fff7ed" stroke="#d97706" stroke-width="2"/>
+  <text x="185" y="400" font-size="15" font-weight="600" fill="#92400e" text-anchor="middle">prepare_revision</text>
+  <text x="185" y="422" font-size="13" fill="#64748b" text-anchor="middle">specific flags → feedback text</text>
+  <text x="350" y="495" font-size="15" font-weight="600" fill="#92400e">YES (max 1 pass)</text>
+  <text x="350" y="517" font-size="13" fill="#64748b">all 4 agents re-run WITH the feedback</text>
+
+  <!-- No branch -->
+  <line x1="760" y1="505" x2="895" y2="505" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+  <text x="800" y="493" font-size="15" font-weight="600" fill="#059669">NO</text>
+  <rect x="905" y="470" width="305" height="70" rx="12" fill="#d1fae5" stroke="#059669" stroke-width="2"/>
+  <text x="1057" y="500" font-size="17" font-weight="600" fill="#065f46" text-anchor="middle">Proceed to Final Review</text>
+  <text x="1057" y="524" font-size="14" fill="#64748b" text-anchor="middle">synthesis + human approval</text>
+
+  <!-- Proof note -->
+  <rect x="60" y="610" width="1150" height="70" rx="12" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="635" y="638" font-size="16" fill="#334155" text-anchor="middle">Verified in a real end-to-end Ollama run: reflection flagged 2 issues, all four agents re-ran with that feedback,</text>
+  <text x="635" y="662" font-size="16" fill="#334155" text-anchor="middle">and the Novelty rating changed between passes as a direct result.</text>
+</svg>
