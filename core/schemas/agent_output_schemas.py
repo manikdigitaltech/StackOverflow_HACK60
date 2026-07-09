@@ -53,6 +53,11 @@ class LiteratureMatch(BaseModel):
     chunk_text: str
     section_type: Optional[str] = None
     similarity_score: float
+    # "literature_index" (curated PeerRead corpus, Index B) is the default and
+    # the only source before this field existed. "semantic_scholar"/"arxiv"
+    # mark live web hits, which are weaker evidence for citation-coverage
+    # checks than a curated corpus hit -- downstream formatters surface this.
+    source: str = "literature_index"
 
 
 class LiteratureContext(BaseModel):

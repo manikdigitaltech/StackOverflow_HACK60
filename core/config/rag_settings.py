@@ -45,6 +45,13 @@ class LiveSourceSettings:
     request_timeout_seconds: float = 5.0
     semantic_scholar_base_url: str = "https://api.semanticscholar.org/graph/v1"
     default_top_k: int = 5
+    # Gate *live query-time* use during a review run. Distinct from
+    # settings.IngestionSettings.enable_arxiv/enable_semantic_scholar, which
+    # gate *corpus-build-time* ingestion. Safe to leave on: both clients
+    # degrade to [] on any failure, so offline runs lose nothing but
+    # supplementary matches -- the review itself never blocks on the network.
+    enable_arxiv: bool = True
+    enable_semantic_scholar: bool = True
 
 
 @dataclass(frozen=True)

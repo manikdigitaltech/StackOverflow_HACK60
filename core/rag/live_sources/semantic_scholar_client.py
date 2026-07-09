@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 
 from core.config.rag_settings import RAG_SETTINGS
+from core.config.settings import settings
 from core.rag.models import RetrievalResult
 
 logger = logging.getLogger(__name__)
@@ -30,10 +31,14 @@ def search_semantic_scholar(
     """
     import requests
 
+    api_key = settings.live_sources.semantic_scholar_api_key
+    headers = {"x-api-key": api_key} if api_key else {}
+
     try:
         response = requests.get(
             f"{RAG_SETTINGS.live_sources.semantic_scholar_base_url}/paper/search",
             params={"query": query, "limit": k, "fields": "title,abstract,year,venue,externalIds"},
+            headers=headers,
             timeout=RAG_SETTINGS.live_sources.request_timeout_seconds,
         )
         response.raise_for_status()

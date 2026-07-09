@@ -138,9 +138,23 @@ contribution verdicts, reflection flags); Memory reports whether *this run*
 actually triggered a revision pass, rather than a blanket "no tracking
 exists" now that the loop is real.
 
+## Human-in-the-loop approval (wired)
+
+The review graph now parks at a LangGraph `interrupt()` after `final_review`
+(see `core/graph/nodes.py::human_approval`). The server surfaces this as an
+`awaiting_approval` SSE event on the `human_approval` stage (with the drafted
+recommendation in `request`), and `POST /api/approve/{run_id}` resumes the
+parked run with the human's decision — the endpoint guards against unknown
+run_ids and double-decisions (409). The UI's Approve/Request Changes/Reject
+buttons are live: they POST the decision (plus the optional comment box, and
+an optional recommendation override on Request Changes), then update the
+approval card, progress bar, activity log, and Final Review/Approval views
+with the decided state. The resume only works in the same server process
+that ran the review (in-memory checkpointer + `_RUNS`), same as every other
+piece of run state in this demo layer.
+
 ## Not yet done
 
-No human-in-the-loop approval *persistence* (Phase 2, no MySQL writes) — the
-Human Approval view now shows the real final review, but Approve/Reject
-clicks are visibly inert (an honest alert, not a silent no-op) rather than
-wired to `core.db`.
+No approval *persistence* — decisions live in the graph checkpointer for the
+life of the process; nothing writes to `core.db`'s `human_approvals` table
+(Phase 2, no MySQL writes).
