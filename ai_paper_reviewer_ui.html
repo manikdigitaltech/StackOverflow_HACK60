@@ -2073,8 +2073,15 @@
       <!-- ========== VIEW: HISTORY (real rows from MySQL via /api/history) ========== -->
       <section class="view" id="view-history">
         <div class="history-wrap">
-          <div class="section-title">Review History</div>
-          <div class="section-sub">Past reviews persisted to MySQL by the pipeline -- survives a server restart, unlike the Live Run tab's in-memory state.</div>
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
+            <div>
+              <div class="section-title">Review History</div>
+              <div class="section-sub">Past reviews persisted to MySQL by the pipeline -- survives a server restart, unlike the Live Run tab's in-memory state.</div>
+            </div>
+            <button class="btn-export" onclick="loadHistory()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>Refresh</button>
+          </div>
           <div id="historyList"><div class="sp-block"><p>Loading...</p></div></div>
         </div>
       </section>
@@ -2246,9 +2253,14 @@
     // the log entry, not a redundant derived summary.
     function activityDetailFor(event, card) {
       if (event.stage === 'pipeline') {
-        return event.status === 'awaiting_approval'
-          ? 'Review drafted -- awaiting human approval before the recommendation is issued.'
-          : `All stages finished in ${event.total_elapsed_s}s.`;
+        if (event.status === 'awaiting_approval') return 'Review drafted -- awaiting human approval before the recommendation is issued.';
+        // Client-synthesized close-out (see handleApprovalAction()): the real
+        // SSE stream never emits a second 'pipeline' event once a decision is
+        // made over POST /api/approval/{run_id}, so without this the node
+        // would sit at "awaiting approval" forever even after the run is
+        // actually done. `message` is only set on that synthetic event.
+        if (event.message) return event.message;
+        return `All stages finished in ${event.total_elapsed_s}s.`;
       }
       // human_approval's "done" event is synthesized client-side by
       // handleApprovalAction() (no real SSE event follows the interrupt) and
@@ -3020,6 +3032,25 @@
         if (data.final_review) liveEvents['final_report'].result = data.final_review;  // override case: keep exports/views consistent
         approvalRecordedFor = runId;
         appendActivity(liveEvents['human_approval'], CARDS.find(c => c.key === 'human_approval'));
+
+        // Close out the 'pipeline' timeline node too -- it's stuck at
+        // "awaiting approval" (a non-terminal status) because the real SSE
+        // stream ended there and never resumes; this decision arrived over a
+        // separate REST call, not a continuation of that stream. Reusing the
+        // same stage key updates the existing node in place (see
+        // appendActivity's isNew check) instead of leaving a dangling
+        // pulsing row above a run that's actually finished.
+        liveEvents['pipeline'] = {
+          stage: 'pipeline', status: 'complete', ts: Date.now() / 1000,
+          message: `Pipeline finished -- review ${decided.decision}.`,
+        };
+        appendActivity(liveEvents['pipeline']);
+
+        // If the History tab happens to already be open, refresh it too --
+        // this run's status just flipped to completed in MySQL, and
+        // otherwise that tab would keep showing whatever it last loaded.
+        if (document.getElementById('view-history').classList.contains('active')) loadHistory();
+
         document.querySelectorAll('.approval-actions button').forEach(b => b.disabled = true);
         renderCards();
         updateProgressBar();
@@ -3081,7 +3112,6 @@
     })();
 
     // ---- Review History (real rows from MySQL via GET /api/history) ----
-    let historyLoaded = false;
     async function loadHistory() {
       const list = document.getElementById('historyList');
       list.innerHTML = `<div class="sp-block"><p>Loading...</p></div>`;
@@ -3137,11 +3167,12 @@
       }
     }
 
-    // History tab lazily fetches on first visit rather than on every page
-    // load, since most sessions are spent on Live Run, not browsing the past.
-    document.querySelector('.topbar-tab[data-view="history"]').addEventListener('click', () => {
-      if (!historyLoaded) { historyLoaded = true; loadHistory(); }
-    });
+    // History tab fetches fresh rows on every visit (plus a manual Refresh
+    // button above the list, and again right after a decision is recorded --
+    // see handleApprovalAction()) rather than once per page load: a run
+    // completed or decided after your last visit would otherwise sit stale
+    // until a full page reload, since nothing else pushes history updates.
+    document.querySelector('.topbar-tab[data-view="history"]').addEventListener('click', loadHistory);
 
     // Initial render so cards show "Waiting" before any upload.
     renderCards();
