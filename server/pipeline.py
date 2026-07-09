@@ -673,10 +673,19 @@ def check_system_health() -> Dict[str, Any]:
         "detail": "built" if lit_index.exists() else "not built yet -- run core/rag/ingestion/build_corpus.py against a PeerRead clone",
     }
 
+    # build_review_graph() (core/graph/build_graph.py) currently compiles with
+    # InMemorySaver, not a SqliteSaver, so this path is never written to no
+    # matter how many times the graph runs -- its absence does not mean the
+    # graph hasn't run (see docs/TODO.md's durable-checkpointer item).
     checkpoint_path = repo_root / Path(settings.checkpoint.sqlite_path.lstrip("./"))
     checks["checkpoint_db"] = {
         "healthy": True, "label": "LangGraph Checkpoint DB",
-        "detail": "exists" if checkpoint_path.exists() else "will be created on first orchestration run (not built yet -- no LangGraph graph exists)",
+        "detail": (
+            "exists" if checkpoint_path.exists()
+            else "using in-memory checkpointer -- durable SQLite not wired in yet, "
+                 "so a parked human-approval run won't survive a server restart "
+                 "(see docs/TODO.md)"
+        ),
     }
 
     return checks
