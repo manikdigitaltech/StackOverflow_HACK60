@@ -1,0 +1,92 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# Bytecode
+*.pyc
+
+# =========================
+# Virtual Environment
+# =========================
+hackathon/
+venv/
+env/
+.venv/
+ENV/
+
+# =========================
+# Environment Variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Jupyter
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# VS Code
+# =========================
+.vscode/
+.history/
+
+# =========================
+# PyCharm
+# =========================
+.idea/
+
+# =========================
+# Build / Distribution
+# =========================
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Testing
+# =========================
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# =========================
+# Secrets
+# =========================
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+credentials.json
+service_account.json
+
+# API Keys
+config.py
+secrets.py
+
+# =========================
+# Temporary files
+# =========================
+*.tmp
+*.temp
