@@ -56,13 +56,13 @@ Server-Sent Events, and persists every run to MySQL as it goes.
 python -m uvicorn server.main:app --reload --port 8000
 ```
 
-Open `http://localhost:8000/`, upload a PDF, and watch it run. The only
-thing still shown honestly as "not yet implemented" is the graph actually
-pausing mid-run for human approval (it runs to completion, then a human
-reviews/decides on the finished result — see `docs/CONTEXT.md` §7 item 2).
-Past runs are browsable in the dashboard's History tab; system dependency
-health (Ollama, MySQL, Docling, literature index, checkpoint DB) is a live
-panel, not a hardcoded "Healthy."
+Open `http://localhost:8000/`, upload a PDF, and watch it run. The review
+run genuinely pauses mid-graph at the human-approval gate (a real LangGraph
+`interrupt()`, not a post-hoc "review the finished result" step) until you
+approve, reject, or revise it from the dashboard — see `docs/CONTEXT.md` §7
+item 2. Past runs are browsable in the dashboard's History tab; system
+dependency health (Ollama, MySQL, Docling, literature index, checkpoint DB)
+is a live panel, not a hardcoded "Healthy."
 
 ## Running the orchestration graph directly
 
@@ -159,16 +159,18 @@ explicitly warns not to trust any snapshot as permanently current — check
 git state yourself) — condensed here:
 
 - **Working, verified, real data**: PDF parsing (with guardrails), both RAG
-  indexes (the literature index holds real ICLR-2017 papers, not seed data),
-  all 10 review agents individually and via the orchestration graph, the
-  live SSE dashboard (every agent + Final Review + Human Approval + History
-  + System Health), MySQL persistence, and the graded PeerRead evaluation
-  harness (real accuracy/F1/κ numbers, not just built-but-unrun).
-- **Partial**: human-in-the-loop — a decision genuinely persists, but the
-  graph doesn't yet pause mid-run to wait for one (runs to completion first).
+  indexes (the literature index holds real ICLR-2017 papers, not seed data,
+  optionally augmented live by arXiv/Semantic Scholar), all 10 review agents
+  individually and via the orchestration graph, the live SSE dashboard
+  (every agent + Final Review + Human Approval + History + System Health),
+  MySQL persistence, human-in-the-loop approval (a real LangGraph
+  `interrupt()`/`Command(resume=...)` mid-graph pause, not a post-hoc
+  record), and the graded PeerRead evaluation harness (real accuracy/F1/κ
+  numbers, not just built-but-unrun).
 - **Known open problem, being actively worked**: the eval harness's Cohen's
   κ is currently low (~0.10, "slight" agreement) — see `docs/CONTEXT.md` §7
-  item 3 for the honest read and what's already been tried.
-- **Not built**: a true LangGraph interrupt/resume for human approval.
+  item 3 for the honest read and what's already been tried. The Adversarial
+  Critic agent was added directly in response to this; re-running the
+  harness to see whether it moved is still open.
 - Figure/table vision analysis is code-complete but off by default (no local
   vision model pulled).

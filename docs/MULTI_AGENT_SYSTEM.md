@@ -89,14 +89,15 @@ something needs catching; reflection is the backstop for when they don't.
 |---|---|
 | All 10 agents individually | Built, tested, verified against real Ollama |
 | Wired into one bounded LangGraph run | **Done** — parallel fan-out, grounded revision loop (now including the Adversarial Critic's own AND-join, re-fires automatically on a revision pass), verified end-to-end for real |
-| Wired into the live dashboard | **Done** — every agent has a real card with real structured rendering; no placeholder cards remain except `human_approval`'s persistence step (see below) |
+| Wired into the live dashboard | **Done** — every agent has a real card with real structured rendering; no placeholder cards remain |
 | Review persistence to MySQL | **Done** — `reviewed_papers`/`review_assessments`/`reflection_flags` are written for real as each run streams, best-effort (a DB hiccup never breaks a live review); `GET /api/history` and `GET /api/history/{trace_id}` surface past runs |
-| Human-in-the-loop approval | **Partially done** — the dashboard's Human Approval view shows the real final review, and `POST /api/approval/{run_id}` genuinely persists a decision to `human_approvals`. What's *not* built: the graph doesn't actually pause/interrupt mid-run to wait for that decision (a deliberate scope call — see `docs/CONTEXT.md` §7) |
-| Evaluated against PeerRead's labeled test split | **Done** — `core/eval/peerread_harness.py` + `scripts/run_peerread_evaluation.py`; see `docs/CONTEXT.md` §7 item 3 for the latest real accuracy/F1/κ numbers |
+| Human-in-the-loop approval | **Done** — the review graph genuinely pauses mid-run at a real LangGraph `interrupt()`; the dashboard's Human Approval view shows the drafted review, and `POST /api/approval/{run_id}` resumes the parked run for real via `Command(resume=...)` AND persists the decision to `human_approvals`. Only limitation: an in-memory checkpointer, so a parked run doesn't survive a server restart (see `docs/CONTEXT.md` §7 item 2) |
+| Evaluated against PeerRead's labeled test split | **Done** — `core/eval/peerread_harness.py` + `scripts/run_peerread_evaluation.py`; see `docs/CONTEXT.md` §7 item 3 for the latest real accuracy/F1/κ numbers. Not yet re-run since the Adversarial Critic landed |
 | Agent-output quality gates (DeepEval/RAGAS) | **Done, optional** — see `docs/QUALITY_GATES.md`; a second, complementary signal to the PeerRead accuracy numbers, checking *how* an agent reasoned, not just whether its final call matched ground truth |
 
 **The multi-agent controller itself — the thing the problem statement
-actually asks for — is real, working, persisted, and measured against the
-graded eval set.** What's left is the true interrupt/resume half of
-human-in-the-loop (Phase 2) and any further iteration the eval numbers
-motivate (see `docs/CONTEXT.md`'s honest read on the current κ score).
+actually asks for — is real, working, persisted, gated behind a genuine
+human-in-the-loop approval interrupt, and measured against the graded eval
+set.** What's left is re-running the eval harness to see whether the
+Adversarial Critic actually moved the numbers (see `docs/CONTEXT.md`'s
+honest read on the current κ score).
