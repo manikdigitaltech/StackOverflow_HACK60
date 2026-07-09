@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 
 from core.config.rag_settings import RAG_SETTINGS
+from core.config.settings import settings
 from core.rag.embeddings.embedding_provider import BgeSmallEmbeddingProvider
 from core.rag.models import Chunk, RetrievalResult
 from core.rag.retrieval.fusion import reciprocal_rank_fusion
@@ -27,7 +28,7 @@ class PaperIndex:
     """In-memory hybrid index over one paper's chunks. One instance per review run."""
 
     def __init__(self, embedding_provider: BgeSmallEmbeddingProvider | None = None):
-        self._embedding_provider = embedding_provider or BgeSmallEmbeddingProvider()
+        self._embedding_provider = embedding_provider or BgeSmallEmbeddingProvider(device=settings.embeddings.device)
         self._faiss_index = None
         self._bm25_index = None
         self._chunks: list[Chunk] = []

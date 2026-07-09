@@ -13,8 +13,10 @@ from core.config.settings import settings
 
 # Our settings use hyphenated names (matches the blueprint's Literal types);
 # Ollama's actual model tags use colons. This maps between the two.
+# "qwen2.5-7b" -> the q8_0 instruct tag, not the bare "qwen2.5:7b" tag: the
+# latter was never pulled on this machine and get_llm() would 404 against it.
 _OLLAMA_MODEL_MAP = {
-    "qwen2.5-7b": "qwen2.5:7b",
+    "qwen2.5-7b": "qwen2.5:7b-instruct-q8_0",
     "llama3.1-8b": "llama3.1:8b",
 }
 

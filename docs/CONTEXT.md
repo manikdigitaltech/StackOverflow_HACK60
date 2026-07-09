@@ -58,14 +58,14 @@ python -m uvicorn server.main:app --reload --port 8000   # then open localhost:8
 Detailed docs for each area are at the repo root: `RAG_ARCHITECTURE.md`,
 `PARSING_ARCHITECTURE.md`, `NOVELTY_AGENT.md`, `AGENTS_ARCHITECTURE.md`,
 `VLM_FIGURE_TABLE_ANALYSIS.md`, `LANGGRAPH_ORCHESTRATION.md`,
-`MULTI_AGENT_SYSTEM.md`, `UI_WORK.md`. Condensed summary:
+`MULTI_AGENT_SYSTEM.md`, `UI_WORK.md`, `PEERREAD_CORPUS_MODULE.md`. Condensed summary:
 
 | Area                                                        | Status                                                                                                      |
 | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | PDF parsing (Docling)                                       | ✅ Real, tested on real PDFs                                                                                 |
 | RAG — paper's own index (hybrid dense+BM25)                 | ✅ Real, tested, live-queryable                                                                              |
-| RAG — persistent literature corpus                          | ✅ Code real & tested; **no PeerRead data indexed yet**                                                      |
-| Figure/table vision analysis                                | ✅ Code real & tested (mocked); **no vision model pulled**                                                   |
+| RAG — persistent literature corpus                          | ✅ Real, real ICLR-2017 data indexed (389 papers, train+dev) — see `PEERREAD_CORPUS_MODULE.md`               |
+| Figure/table vision analysis                                | ✅ Real — vision model pulled (`qwen2.5vl:7b`) and `VISION__ENABLED=true`, verified end-to-end on GPU        |
 | 9 review agents (incl. 2 novelty implementations)           | ✅ All real, tested individually and together                                                                |
 | LangGraph orchestration                                     | ✅ Built + verified (mocked topology test AND a real ~20min Ollama run) — **not yet wired into the live UI** |
 | Live SSE dashboard                                          | ✅ Real, working — shows placeholder cards for agents not yet wired into it                                  |
@@ -142,13 +142,17 @@ assume anything about commit/push state from this document.
    running — no local `docker-compose.yml` exists; create one or get it from
    a teammate).
 3. **The evaluation harness (the graded core)** — load PeerRead's labeled
-   test split (`reviews/*.json`, has the `accepted` field), run the full
-   graph per test paper, map `final_recommendation` to accept/reject, compute
-   accuracy/F1/Cohen's κ against ground truth. Needs a real PeerRead clone.
-4. **Data**: clone PeerRead, run `core/rag/ingestion/build_corpus.py`
-   (builds the real literature index) and consider building a real
-   `data/novelty_corpus/` (currently only 2 toy seed papers). Optionally pull
-   a vision model if live figure analysis should actually run.
+   `test` split (`reviews/*.json`, has the `accepted` field — already present
+   at `data/peerread_raw/iclr_2017/test/`, held out of both corpora, see
+   `PEERREAD_CORPUS_MODULE.md`), run the full graph per test paper, map
+   `final_recommendation` to accept/reject, compute accuracy/F1/Cohen's κ
+   against ground truth. This is the one remaining big piece.
+4. **Data** — done for `iclr_2017`: `data/peerread_raw/` cloned (reviews only,
+   PDFs skipped), `core/rag/ingestion/build_corpus.py` run (389-paper literature
+   index) and `data/novelty_corpus/` populated with the same 389 real papers
+   (see `PEERREAD_CORPUS_MODULE.md`). Still open: the `acl_2017` venue (listed
+   in `IngestionSettings.peerread_venues` but never fetched — the graded core
+   only needs ICLR-2017, so this was deliberately skipped).
 
 ## 8. Where everything lives (quick map)
 
