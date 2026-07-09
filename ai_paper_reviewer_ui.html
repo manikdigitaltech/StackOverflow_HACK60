@@ -3092,10 +3092,26 @@
         const a = approvalEv.approval;
         banner = `<p style="color:var(--green);font-weight:600;">✓ Decision recorded: ${escapeHtml(a.decision)}${a.override_recommendation ? ` (recommendation overridden to ${escapeHtml(a.override_recommendation)})` : ''}${a.comment ? ` -- "${escapeHtml(a.comment)}"` : ''}</p>`;
       }
+      const subscores = [
+        ['Novelty', liveEvents['novelty_llm_agent']?.result?.novelty_rating],
+        ['Methodology', liveEvents['methodology_agent']?.result?.soundness_rating],
+        ['Citation Quality', liveEvents['citation_agent']?.result?.citation_quality_rating],
+        ['Reference Usage', liveEvents['reference_usage_agent']?.result?.overall_rating],
+        ['Evidence & Reproducibility', liveEvents['evidence_agent']?.result?.overall_rating],
+      ];
+
       doc.innerHTML = `${banner}
         <h3>Summary</h3><p>${escapeHtml(r.paper_summary)}</p>
         <h3>Strengths</h3><ul>${r.strengths.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>'}</ul>
         <h3>Weaknesses</h3><ul>${r.weaknesses.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>'}</ul>
+        <h3>Questions for Authors</h3><ul>${r.questions_for_authors.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>'}</ul>
+        <h3>Dimension Ratings</h3><ul>${subscores.map(([label, rating]) => `<li><b>${label}:</b> ${rating ? titleCase(rating) : '—'}</li>`).join('')}</ul>
+        <h3>Novelty Analysis</h3><p>${escapeHtml(r.novelty_analysis)}</p>
+        <h3>Citation Quality</h3><p>${escapeHtml(r.citation_quality)}</p>
+        <h3>Reference Usage Quality</h3><p>${escapeHtml(r.reference_usage_quality)}</p>
+        <h3>Reproducibility</h3><p>${escapeHtml(r.reproducibility)}</p>
+        <h3>Evidence Mapping</h3><p>${escapeHtml(r.evidence_mapping)}</p>
+        <h3>Missing Baselines</h3><ul>${r.missing_baselines.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>'}</ul>
         <h3>Recommendation</h3><p>${titleCase(r.final_recommendation)} (confidence: ${titleCase(r.confidence)})</p>`;
     }
 
