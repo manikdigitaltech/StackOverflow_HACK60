@@ -26,12 +26,14 @@ from core.agents.literature_rag_agent import LiteratureRAGAgent
 from core.agents.methodology_agent import MethodologyAgent
 from core.agents.novelty_agent import NoveltyAgent
 from core.agents.paper_understanding_agent import PaperUnderstandingAgent
+from core.agents.reference_usage_agent import ReferenceUsageAgent
 from core.agents.reflection_agent import ReflectionAgent
 from core.schemas.agent_output_schemas import (
     AdversarialAttack, AdversarialCritique, CitationAssessment,
     EvidenceReproducibilityAssessment, FigureTableSummary,
     FinalReview, LiteratureContext, MethodologyAssessment, NoveltyAssessment,
-    ParsedPaper, PaperUnderstandingOutput, ReflectionFlag, ReflectionNotes,
+    ParsedPaper, PaperUnderstandingOutput, ReferenceUsageAssessment,
+    ReflectionFlag, ReflectionNotes,
 )
 
 call_log = []
@@ -61,6 +63,10 @@ LiteratureRAGAgent.run = lambda self, inputs: (
 FigureTableAgent.run = lambda self, inputs: (
     call_log.append("figure_table"),
     FigureTableSummary(figure_summaries=[], table_summaries=[], extraction_consistency_note="ok"),
+)[1]
+ReferenceUsageAgent.run = lambda self, inputs: (
+    call_log.append("reference_usage"),
+    ReferenceUsageAssessment(reference_verdicts=[], overall_rating="good", summary="s"),
 )[1]
 NoveltyAgent.run = lambda self, inputs: (
     call_log.append("novelty"),
@@ -112,9 +118,11 @@ ReflectionAgent.run = _reflection_run
 def _final_review_run(self, inputs):
     call_log.append("final_review")
     assert inputs["figure_table_summary"] is not None, "figure_table_summary missing at final_review!"
+    assert inputs["reference_usage_assessment"] is not None, "reference_usage_assessment missing at final_review!"
     return FinalReview(
         paper_summary="s", strengths=[], weaknesses=[], questions_for_authors=[],
-        novelty_analysis="n", citation_quality="c", reproducibility="r", evidence_mapping="e",
+        novelty_analysis="n", citation_quality="c", reference_usage_quality="ru",
+        reproducibility="r", evidence_mapping="e",
         missing_baselines=[], final_recommendation="borderline", confidence="medium",
     )
 
@@ -140,6 +148,7 @@ assert call_log.count("citation") == 2, f"expected citation to run twice (initia
 assert citation_calls[0] is None, "first citation call should have no revision_feedback"
 assert citation_calls[1], "second citation call should have revision_feedback set"
 assert call_log.count("figure_table") == 1, "figure_table should run exactly once, never re-triggered by the revision loop"
+assert call_log.count("reference_usage") == 1, "reference_usage should run exactly once, never re-triggered by the revision loop"
 assert result["revision_count"] == 1
 assert result["final_review"] is not None
 

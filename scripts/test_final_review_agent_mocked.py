@@ -21,6 +21,7 @@ from core.schemas.agent_output_schemas import (
     PaperUnderstandingOutput, NoveltyAssessment, ContributionNoveltyVerdict, NoveltyComparison,
     MethodologyAssessment, MethodologyAspectVerdict,
     CitationAssessment, CitationCoverageVerdict,
+    ReferenceUsageAssessment, ReferenceUsageVerdict,
     EvidenceReproducibilityAssessment, ClaimEvidenceVerdict, ReproducibilityAspectVerdict,
     FigureTableSummary, FigureSummary, TableSummary,
     ReflectionNotes, ReflectionFlag,
@@ -96,6 +97,22 @@ citation = CitationAssessment(
     reasoning="All 5 retrieved, highly relevant recent papers on KV cache compression are absent from the paper's own reference list.",
 )
 
+reference_usage = ReferenceUsageAssessment(
+    reference_verdicts=[
+        ReferenceUsageVerdict(reference="StreamingLLM: Efficient Streaming Language Models with Attention Sinks",
+                               cited_in_body=True, role="baseline", usefulness="high",
+                               evidence="Table 1 reports StreamingLLM as a directly compared baseline."),
+        ReferenceUsageVerdict(reference="H2O: Heavy-Hitter Oracle for Efficient Generative Inference of LLMs",
+                               cited_in_body=True, role="baseline", usefulness="high",
+                               evidence="Table 1 reports H2O as a directly compared baseline."),
+        ReferenceUsageVerdict(reference="Attention Is All You Need",
+                               cited_in_body=True, role="background", usefulness="low",
+                               evidence="Cited once in the introduction as general transformer background, no further engagement."),
+    ],
+    overall_rating="good",
+    summary="The paper substantively engages with its cited baselines via direct comparison, though a few background references get only a passing mention.",
+)
+
 evidence = EvidenceReproducibilityAssessment(
     claim_verdicts=[
         ClaimEvidenceVerdict(claim="DepthWeave-KV reaches 8.3x KV memory reduction and 72.8 tokens/sec at 64K context",
@@ -161,6 +178,7 @@ result = agent.run({
     "novelty_assessment": novelty,
     "methodology_assessment": methodology,
     "citation_assessment": citation,
+    "reference_usage_assessment": reference_usage,
     "evidence_assessment": evidence,
     "figure_table_summary": figure_table,
     "reflection_notes": reflection,
@@ -186,6 +204,7 @@ for i, q in enumerate(result.questions_for_authors, 1):
 
 print(f"\n--- Novelty Analysis ---\n{result.novelty_analysis}")
 print(f"\n--- Citation Quality ---\n{result.citation_quality}")
+print(f"\n--- Reference Usage Quality ---\n{result.reference_usage_quality}")
 print(f"\n--- Reproducibility ---\n{result.reproducibility}")
 print(f"\n--- Evidence Mapping ---\n{result.evidence_mapping}")
 

@@ -2043,6 +2043,9 @@
             <h3>Citation Quality</h3>
             <p id="finalCitationQuality">—</p>
 
+            <h3>Reference Usage Quality</h3>
+            <p id="finalReferenceUsageQuality">—</p>
+
             <h3>Reproducibility</h3>
             <p id="finalReproducibility">—</p>
 
@@ -2073,8 +2076,15 @@
       <!-- ========== VIEW: HISTORY (real rows from MySQL via /api/history) ========== -->
       <section class="view" id="view-history">
         <div class="history-wrap">
-          <div class="section-title">Review History</div>
-          <div class="section-sub">Past reviews persisted to MySQL by the pipeline -- survives a server restart, unlike the Live Run tab's in-memory state.</div>
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
+            <div>
+              <div class="section-title">Review History</div>
+              <div class="section-sub">Past reviews persisted to MySQL by the pipeline -- survives a server restart, unlike the Live Run tab's in-memory state.</div>
+            </div>
+            <button class="btn-export" onclick="loadHistory()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>Refresh</button>
+          </div>
           <div id="historyList"><div class="sp-block"><p>Loading...</p></div></div>
         </div>
       </section>
@@ -2119,6 +2129,7 @@
       { key: 'novelty_llm_agent', label: 'Novelty Agent (LLM Reasoning)', stageKeys: ['novelty_llm_agent'], icon: ICONS.novelty },
       { key: 'methodology_agent', label: 'Methodology Agent', stageKeys: ['methodology_agent'], icon: ICONS.methodology },
       { key: 'citation_agent', label: 'Citation Agent', stageKeys: ['citation_agent'], icon: ICONS.citation },
+      { key: 'reference_usage_agent', label: 'Reference Usage Agent', stageKeys: ['reference_usage_agent'], icon: ICONS.citation },
       { key: 'evidence_agent', label: 'Evidence & Reproducibility Agent', stageKeys: ['evidence_agent'], icon: ICONS.evidence },
       { key: 'adversarial_critic_agent', label: 'Adversarial Critic Agent', stageKeys: ['adversarial_critic_agent'], icon: ICONS.adversarial },
       { key: 'reflection_agent', label: 'Self-Reflection / Verifier Agent', stageKeys: ['reflection_agent'], icon: ICONS.reflection },
@@ -2246,9 +2257,14 @@
     // the log entry, not a redundant derived summary.
     function activityDetailFor(event, card) {
       if (event.stage === 'pipeline') {
-        return event.status === 'awaiting_approval'
-          ? 'Review drafted -- awaiting human approval before the recommendation is issued.'
-          : `All stages finished in ${event.total_elapsed_s}s.`;
+        if (event.status === 'awaiting_approval') return 'Review drafted -- awaiting human approval before the recommendation is issued.';
+        // Client-synthesized close-out (see handleApprovalAction()): the real
+        // SSE stream never emits a second 'pipeline' event once a decision is
+        // made over POST /api/approval/{run_id}, so without this the node
+        // would sit at "awaiting approval" forever even after the run is
+        // actually done. `message` is only set on that synthetic event.
+        if (event.message) return event.message;
+        return `All stages finished in ${event.total_elapsed_s}s.`;
       }
       // human_approval's "done" event is synthesized client-side by
       // handleApprovalAction() (no real SSE event follows the interrupt) and
@@ -2464,6 +2480,7 @@
         { stage: 'vision', status: 'running', message: 'Cropping + describing up to 6 figure(s)...' },
         { stage: 'vision', status: 'done', elapsed_s: 4.02, num_analyzed: 3, figures: [] },
         { stage: 'novelty_agent', status: 'not_available', message: 'No novelty corpus indexed yet.' },
+        { stage: 'reference_usage_agent', status: 'done', elapsed_s: 2.8, result: { reference_verdicts: [], overall_rating: 'good', summary: 'Mock reference usage summary.' } },
         { stage: 'methodology_agent', status: 'running', message: 'Running...' },
         { stage: 'methodology_agent', status: 'error', message: 'LLM request timed out after 60s.' },
         { stage: 'reflection_agent', status: 'running', message: 'Revision pass 1: re-running assessment agents with feedback...' },
@@ -2732,6 +2749,17 @@
         return `<div class="sp-block"><h5>Citation Quality: ${titleCase(r.citation_quality_rating)}</h5></div>` + verdicts +
           `<div class="sp-block"><h5>Reasoning</h5><p>${escapeHtml(r.reasoning)}</p></div>`;
       }
+      if (card.key === 'reference_usage_agent') {
+        const e = liveEvents['reference_usage_agent'];
+        if (!e || e.status !== 'done' || !e.result) return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting...'}</p></div>`;
+        const r = e.result;
+        const verdicts = r.reference_verdicts.length
+          ? r.reference_verdicts.map(v => `
+          <div class="sp-block"><h5>${v.cited_in_body ? 'CITED' : 'NOT CITED'} -- ${titleCase(v.role)} (usefulness: ${titleCase(v.usefulness)})</h5><p>${escapeHtml(v.reference)}</p><p><i>${escapeHtml(v.evidence)}</i></p></div>`).join('')
+          : `<div class="sp-block"><p>No references were extracted from this paper.</p></div>`;
+        return `<div class="sp-block"><h5>Overall Rating: ${titleCase(r.overall_rating)}</h5></div>` + verdicts +
+          `<div class="sp-block"><h5>Summary</h5><p>${escapeHtml(r.summary)}</p></div>`;
+      }
       if (card.key === 'evidence_agent') {
         const e = liveEvents['evidence_agent'];
         if (!e || e.status !== 'done' || !e.result) return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting...'}</p></div>`;
@@ -2853,6 +2881,7 @@
         return `
         <div class="sp-block"><h5>Novelty Analysis</h5><p>${escapeHtml(r.novelty_analysis)}</p></div>
         <div class="sp-block"><h5>Citation Quality</h5><p>${escapeHtml(r.citation_quality)}</p></div>
+        <div class="sp-block"><h5>Reference Usage Quality</h5><p>${escapeHtml(r.reference_usage_quality)}</p></div>
         <div class="sp-block"><h5>Reproducibility</h5><p>${escapeHtml(r.reproducibility)}</p></div>
         <div class="sp-block"><h5>Evidence Mapping</h5><p>${escapeHtml(r.evidence_mapping)}</p></div>`;
       }
@@ -2869,6 +2898,9 @@
       if (r.coverage_verdicts) return r.coverage_verdicts.length ? r.coverage_verdicts.map(v => `
         <div class="sp-block"><h5>${escapeHtml(v.related_paper_title)} -- ${v.cited ? 'CITED' : 'NOT CITED'}</h5><p>${escapeHtml(v.note)}</p></div>`).join('')
         : `<div class="sp-block"><p>No retrieved literature to check.</p></div>`;
+      if (r.reference_verdicts) return r.reference_verdicts.length ? r.reference_verdicts.map(v => `
+        <div class="sp-block"><h5>${v.cited_in_body ? 'CITED' : 'NOT CITED'} -- ${titleCase(v.role)}</h5><p>${escapeHtml(v.reference)}</p><p><i>${escapeHtml(v.evidence)}</i></p></div>`).join('')
+        : `<div class="sp-block"><p>No references were extracted from this paper.</p></div>`;
       if (r.aspect_verdicts) return r.aspect_verdicts.map(v => `
         <div class="sp-block"><h5>${titleCase(v.aspect)} -- ${v.assessment.toUpperCase()}</h5><p>${escapeHtml(v.note)}</p></div>`).join('');
       if (r.contribution_verdicts) return r.contribution_verdicts.map(v => `
@@ -2925,6 +2957,7 @@
         ['Novelty', liveEvents['novelty_llm_agent']?.result?.novelty_rating],
         ['Methodology', liveEvents['methodology_agent']?.result?.soundness_rating],
         ['Citation Quality', liveEvents['citation_agent']?.result?.citation_quality_rating],
+        ['Reference Usage', liveEvents['reference_usage_agent']?.result?.overall_rating],
         ['Evidence & Reproducibility', liveEvents['evidence_agent']?.result?.overall_rating],
       ];
       document.getElementById('finalSubscores').innerHTML = subscores.map(([label, rating]) => `
@@ -2939,6 +2972,7 @@
       document.getElementById('finalQuestions').innerHTML = r.questions_for_authors.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>';
       document.getElementById('finalNoveltyAnalysis').textContent = r.novelty_analysis;
       document.getElementById('finalCitationQuality').textContent = r.citation_quality;
+      document.getElementById('finalReferenceUsageQuality').textContent = r.reference_usage_quality;
       document.getElementById('finalReproducibility').textContent = r.reproducibility;
       document.getElementById('finalEvidenceMapping').textContent = r.evidence_mapping;
       document.getElementById('finalMissingBaselines').innerHTML = r.missing_baselines.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>';
@@ -3020,6 +3054,25 @@
         if (data.final_review) liveEvents['final_report'].result = data.final_review;  // override case: keep exports/views consistent
         approvalRecordedFor = runId;
         appendActivity(liveEvents['human_approval'], CARDS.find(c => c.key === 'human_approval'));
+
+        // Close out the 'pipeline' timeline node too -- it's stuck at
+        // "awaiting approval" (a non-terminal status) because the real SSE
+        // stream ended there and never resumes; this decision arrived over a
+        // separate REST call, not a continuation of that stream. Reusing the
+        // same stage key updates the existing node in place (see
+        // appendActivity's isNew check) instead of leaving a dangling
+        // pulsing row above a run that's actually finished.
+        liveEvents['pipeline'] = {
+          stage: 'pipeline', status: 'complete', ts: Date.now() / 1000,
+          message: `Pipeline finished -- review ${decided.decision}.`,
+        };
+        appendActivity(liveEvents['pipeline']);
+
+        // If the History tab happens to already be open, refresh it too --
+        // this run's status just flipped to completed in MySQL, and
+        // otherwise that tab would keep showing whatever it last loaded.
+        if (document.getElementById('view-history').classList.contains('active')) loadHistory();
+
         document.querySelectorAll('.approval-actions button').forEach(b => b.disabled = true);
         renderCards();
         updateProgressBar();
@@ -3081,7 +3134,6 @@
     })();
 
     // ---- Review History (real rows from MySQL via GET /api/history) ----
-    let historyLoaded = false;
     async function loadHistory() {
       const list = document.getElementById('historyList');
       list.innerHTML = `<div class="sp-block"><p>Loading...</p></div>`;
@@ -3137,11 +3189,12 @@
       }
     }
 
-    // History tab lazily fetches on first visit rather than on every page
-    // load, since most sessions are spent on Live Run, not browsing the past.
-    document.querySelector('.topbar-tab[data-view="history"]').addEventListener('click', () => {
-      if (!historyLoaded) { historyLoaded = true; loadHistory(); }
-    });
+    // History tab fetches fresh rows on every visit (plus a manual Refresh
+    // button above the list, and again right after a decision is recorded --
+    // see handleApprovalAction()) rather than once per page load: a run
+    // completed or decided after your last visit would otherwise sit stale
+    // until a full page reload, since nothing else pushes history updates.
+    document.querySelector('.topbar-tab[data-view="history"]').addEventListener('click', loadHistory);
 
     // Initial render so cards show "Waiting" before any upload.
     renderCards();

@@ -24,6 +24,7 @@ from core.schemas.agent_output_schemas import (
     NoveltyAssessment,
     ParsedPaper,
     PaperUnderstandingOutput,
+    ReferenceUsageAssessment,
     ReflectionNotes,
 )
 
@@ -36,6 +37,9 @@ class ReviewGraphState(TypedDict, total=False):
     paper_understanding: PaperUnderstandingOutput
     literature_context: LiteratureContext
     figure_table_summary: FigureTableSummary
+    # One-shot like figure_table_summary -- never re-run on a revision pass,
+    # so it isn't part of reflection/adversarial_critic's inputs either.
+    reference_usage_assessment: ReferenceUsageAssessment
 
     # --- Stage 2: parallel assessments ---
     novelty_assessment: NoveltyAssessment

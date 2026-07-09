@@ -1,14 +1,14 @@
 """
-Step 7 test (agent #9 of 9 -- the last one): Final Review Generator.
+Step 7 test (agent #10 of 10 -- the last one): Final Review Generator.
 
 This is the BIGGEST integration test in the whole project so far: it
-chains all 8 prior calls (Paper Understanding, Literature RAG, Novelty,
-Methodology, Citation, Evidence & Reproducibility, Figure & Table,
-Reflection) before Final Review's own (9th) call. 8 real LLM calls total,
-sequentially, on CPU. Budget real time for this -- potentially well over
-10-15 minutes given how long some individual calls (Citation, Evidence &
-Reproducibility, Reflection) have taken on their own. Progress prints
-after each step so you can see it moving.
+chains all 9 prior calls (Paper Understanding, Literature RAG, Novelty,
+Methodology, Citation, Reference Usage, Evidence & Reproducibility,
+Figure & Table, Reflection) before Final Review's own (10th) call. 9 real
+LLM calls total, sequentially, on CPU. Budget real time for this --
+potentially well over 10-15 minutes given how long some individual calls
+(Citation, Evidence & Reproducibility, Reflection) have taken on their
+own. Progress prints after each step so you can see it moving.
 
 Run with: python -m scripts.test_final_review_agent ".\\data\\raw_papers\\your_sample.pdf"
 """
@@ -22,6 +22,7 @@ from core.agents.literature_rag_agent import LiteratureRAGAgent
 from core.agents.novelty_agent import NoveltyAgent
 from core.agents.methodology_agent import MethodologyAgent
 from core.agents.citation_agent import CitationAgent
+from core.agents.reference_usage_agent import ReferenceUsageAgent
 from core.agents.evidence_reproducibility_agent import EvidenceReproducibilityAgent
 from core.agents.figure_table_agent import FigureTableAgent
 from core.agents.reflection_agent import ReflectionAgent
@@ -39,34 +40,38 @@ print(f"Parsed: {parsed.title}\n")
 llm = get_llm()
 prompt_manager = PromptManager()
 
-print("[1/9] Paper Understanding Agent...")
+print("[1/10] Paper Understanding Agent...")
 understanding = PaperUnderstandingAgent(llm=llm, prompt_manager=prompt_manager).run(
     {"parsed_paper": parsed})
 
-print("[2/9] Literature RAG Agent...")
+print("[2/10] Literature RAG Agent...")
 literature_context = LiteratureRAGAgent().run({"parsed_paper": parsed})
 
-print("[3/9] Novelty Agent...")
+print("[3/10] Novelty Agent...")
 novelty = NoveltyAgent(llm=llm, prompt_manager=prompt_manager).run({
     "paper_understanding": understanding, "literature_context": literature_context})
 
-print("[4/9] Methodology Agent...")
+print("[4/10] Methodology Agent...")
 methodology = MethodologyAgent(llm=llm, prompt_manager=prompt_manager).run(
     {"parsed_paper": parsed})
 
-print("[5/9] Citation Agent...")
+print("[5/10] Citation Agent...")
 citation = CitationAgent(llm=llm, prompt_manager=prompt_manager).run({
     "parsed_paper": parsed, "literature_context": literature_context})
 
-print("[6/9] Evidence & Reproducibility Agent...")
+print("[6/10] Reference Usage Agent...")
+reference_usage = ReferenceUsageAgent(llm=llm, prompt_manager=prompt_manager).run(
+    {"parsed_paper": parsed})
+
+print("[7/10] Evidence & Reproducibility Agent...")
 evidence = EvidenceReproducibilityAgent(llm=llm, prompt_manager=prompt_manager).run(
     {"parsed_paper": parsed})
 
-print("[7/9] Figure & Table Agent...")
+print("[8/10] Figure & Table Agent...")
 figure_table = FigureTableAgent(llm=llm, prompt_manager=prompt_manager).run(
     {"parsed_paper": parsed})
 
-print("[8/9] Reflection Agent...")
+print("[9/10] Reflection Agent...")
 reflection = ReflectionAgent(llm=llm, prompt_manager=prompt_manager).run({
     "parsed_paper": parsed,
     "novelty_assessment": novelty,
@@ -75,7 +80,7 @@ reflection = ReflectionAgent(llm=llm, prompt_manager=prompt_manager).run({
     "evidence_assessment": evidence,
 })
 
-print("\nAll 8 upstream agents complete. Running Final Review Generator (9th and final call)...")
+print("\nAll 9 upstream agents complete. Running Final Review Generator (10th and final call)...")
 final_review_agent = FinalReviewAgent(llm=llm, prompt_manager=prompt_manager)
 result = final_review_agent.run({
     "paper_understanding": understanding,
@@ -83,6 +88,7 @@ result = final_review_agent.run({
     "novelty_assessment": novelty,
     "methodology_assessment": methodology,
     "citation_assessment": citation,
+    "reference_usage_assessment": reference_usage,
     "evidence_assessment": evidence,
     "reflection_notes": reflection,
 })
@@ -107,6 +113,7 @@ for i, q in enumerate(result.questions_for_authors, 1):
 
 print(f"\n--- Novelty Analysis ---\n{result.novelty_analysis}")
 print(f"\n--- Citation Quality ---\n{result.citation_quality}")
+print(f"\n--- Reference Usage Quality ---\n{result.reference_usage_quality}")
 print(f"\n--- Reproducibility ---\n{result.reproducibility}")
 print(f"\n--- Evidence Mapping ---\n{result.evidence_mapping}")
 

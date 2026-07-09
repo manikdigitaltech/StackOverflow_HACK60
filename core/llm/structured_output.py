@@ -12,13 +12,32 @@ so debugging doesn't require re-running the LLM call blind.
 """
 
 import json
+import logging
 import re
-from typing import Type, TypeVar
+import typing
+from typing import Any, Dict, Literal, Optional, Tuple, Type, TypeVar
 from pydantic import BaseModel, ValidationError
 
 T = TypeVar("T", bound=BaseModel)
 
+logger = logging.getLogger(__name__)
+
 _CODE_FENCE_PATTERN = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
+
+# Several of our schemas place a 3-point Literal ("adequate"/"weak"/"missing")
+# next to a 4-point Literal ("poor"/"fair"/"good"/"excellent") on a sibling
+# field in the same object (e.g. MethodologyAssessment.aspect_verdicts[].assessment
+# vs MethodologyAssessment.soundness_rating). Weaker local models occasionally
+# bleed a value from one scale into the other despite the prompt explicitly
+# telling them not to. This is a deterministic, logged repair for exactly that
+# known confusion -- it only fires if the mapped value is actually valid for
+# the field that failed, so it can't paper over unrelated schema violations.
+_LITERAL_SYNONYM_REPAIRS = {
+    "excellent": "adequate",
+    "good": "adequate",
+    "fair": "weak",
+    "poor": "weak",
+}
 
 
 class StructuredOutputError(Exception):
@@ -28,6 +47,62 @@ class StructuredOutputError(Exception):
 
 def _strip_code_fences(text: str) -> str:
     return _CODE_FENCE_PATTERN.sub("", text).strip()
+
+
+def _literal_choices_at_path(model: Type[BaseModel], loc: Tuple[Any, ...]) -> Optional[tuple]:
+    """Walks a Pydantic error `loc` path (field names / list indices) through
+    the model's type annotations and returns the allowed values if it lands
+    on a Literal field, else None."""
+    current: Any = model
+    for key in loc:
+        if isinstance(key, int):
+            args = typing.get_args(current)
+            if not args:
+                return None
+            current = args[0]
+            continue
+        if not (isinstance(current, type) and issubclass(current, BaseModel)):
+            return None
+        field = current.model_fields.get(key)
+        if field is None:
+            return None
+        current = field.annotation
+    if typing.get_origin(current) is Literal:
+        return typing.get_args(current)
+    return None
+
+
+def _set_at_path(data: Dict[str, Any], loc: Tuple[Any, ...], value: Any) -> None:
+    target = data
+    for key in loc[:-1]:
+        target = target[key]
+    target[loc[-1]] = value
+
+
+def _attempt_literal_repair(data: Dict[str, Any], error: ValidationError, output_model: Type[BaseModel]) -> bool:
+    """Deterministically fixes known cross-scale Literal mistakes in place.
+    Returns True if at least one field was repaired."""
+    repaired = False
+    for err in error.errors():
+        if err["type"] != "literal_error":
+            continue
+        invalid = err.get("input")
+        if not isinstance(invalid, str):
+            continue
+        candidate = _LITERAL_SYNONYM_REPAIRS.get(invalid.strip().lower())
+        if candidate is None:
+            continue
+        loc = err["loc"]
+        choices = _literal_choices_at_path(output_model, loc)
+        if choices is None or candidate not in choices:
+            continue
+        _set_at_path(data, loc, candidate)
+        logger.warning(
+            "Repaired %s: field %s had out-of-scale value %r, mapped to %r.",
+            output_model.__name__, ".".join(str(p) for p in loc), invalid, candidate,
+        )
+        repaired = True
+    return repaired
 
 
 def invoke_for_json(llm, system: str, user: str, output_model: Type[T], max_attempts: int = 3) -> T:
@@ -63,6 +138,12 @@ def invoke_for_json(llm, system: str, user: str, output_model: Type[T], max_atte
         try:
             return output_model.model_validate(data)
         except ValidationError as e:
+            if _attempt_literal_repair(data, e, output_model):
+                try:
+                    return output_model.model_validate(data)
+                except ValidationError as e2:
+                    e = e2  # repaired the known confusion; feed back only what's still wrong
+
             last_error = StructuredOutputError(
                 f"LLM's JSON didn't match the expected {output_model.__name__} schema.\n"
                 f"Validation errors: {e}\nParsed JSON:\n{json.dumps(data, indent=2)}"

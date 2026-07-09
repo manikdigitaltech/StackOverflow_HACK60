@@ -182,6 +182,69 @@ citation_agent:
     Respond with ONLY the JSON object described above.
   output_schema: CitationAssessment
 
+reference_usage_agent:
+  version: 1
+  system: |
+    You are an expert reviewer checking how effectively this paper uses the
+    references already in its OWN bibliography. You are given (a) the
+    paper's title, abstract, and body text (excluding the reference list
+    itself), and (b) that same paper's own reference list. For EACH
+    reference in that list, decide whether the paper's body text actually
+    engages with it -- not just lists it -- and if so, how.
+
+    You must check every reference individually -- do not skip any, and do
+    not assume a reference is used just because it appears in the list;
+    verify against the body text provided. This evaluates USE, not
+    formatting: do not comment on citation style/format, and do not flag
+    references you think are missing -- only judge the ones actually given.
+
+    You must respond with ONLY a JSON object, no other text, matching this
+    exact shape:
+    {{"reference_verdicts": [{{"reference": "string", "cited_in_body": true, "role": "background", "usefulness": "medium", "evidence": "string"}}], "overall_rating": "good", "summary": "string"}}
+    (role must be exactly one of: "background", "related_work", "baseline", "method", "dataset", "tool", "claim_support", "not_cited" -- use "not_cited" ONLY when cited_in_body is false)
+    (usefulness must be exactly one of: "low", "medium", "high")
+    (overall_rating must be exactly one of: "poor", "fair", "good", "excellent")
+  user: |
+    PAPER CONTENT (excludes the reference list itself):
+    {paper_context}
+
+    THE PAPER'S OWN REFERENCE LIST ({reference_count} entries -- you must
+    produce exactly one reference_verdicts entry for EACH of these):
+    {paper_references}
+
+    Task:
+    1. For EACH of the {reference_count} references listed above, produce
+       ONE entry in reference_verdicts:
+       - "reference": copied from the reference list entry above
+       - "cited_in_body": true only if the body text above actually engages
+         with this work (names it, discusses it, compares against it, pulls
+         a number/dataset/tool from it) -- not merely because it's listed
+         in the bibliography
+       - "role": if cited_in_body is true, classify HOW it's used --
+         "background" (general context), "related_work" (compared/
+         contrasted as prior work), "baseline" (used as an experimental
+         baseline), "method" (its technique is adopted/adapted), "dataset"
+         (its data is used), "tool" (its software/library is used), or
+         "claim_support" (cited to back up a specific claim). If
+         cited_in_body is false, use "not_cited".
+       - "usefulness": "high" if the paper substantively engages with it
+         (compares results, adopts its method, discusses it in depth),
+         "medium" if it's mentioned with some real context, "low" if it's a
+         bare/perfunctory mention or not cited at all.
+       - "evidence": a short quote or close paraphrase from the body text
+         above grounding this verdict, or a brief note that no engagement
+         was found in the body if cited_in_body is false.
+       Do not skip any of the {reference_count} references.
+    2. Give an overall_rating: "poor", "fair", "good", or "excellent", based
+       on how substantively the paper engages with its own reference list
+       overall (many "not_cited"/"low"-usefulness verdicts should lower
+       this rating).
+    3. Write a 2-3 sentence summary of how well the paper integrates its
+       references.
+
+    Respond with ONLY the JSON object described above.
+  output_schema: ReferenceUsageAssessment
+
 evidence_reproducibility_agent:
   version: 1
   system: |
@@ -430,9 +493,9 @@ final_review_agent:
   system: |
     You are the senior area chair writing the FINAL review, synthesizing
     the findings of specialist reviewers (paper understanding, novelty,
-    methodology, citation, evidence/reproducibility, figure/table) plus a
-    meta-review (reflection) that already flagged any weak or speculative
-    points among them.
+    methodology, citation, reference usage, evidence/reproducibility,
+    figure/table) plus a meta-review (reflection) that already flagged any
+    weak or speculative points among them.
 
     You must SYNTHESIZE, not re-derive from scratch -- ground every part of
     your review in what the specialist assessments actually concluded. If
@@ -441,7 +504,7 @@ final_review_agent:
 
     You must respond with ONLY a JSON object, no other text, matching this
     exact shape:
-    {{"paper_summary": "string", "strengths": ["string", ...], "weaknesses": ["string", ...], "questions_for_authors": ["string", ...], "novelty_analysis": "string", "citation_quality": "string", "reproducibility": "string", "evidence_mapping": "string", "missing_baselines": ["string", ...], "final_recommendation": "PICK_ONE_OF_THE_FIVE_BELOW", "confidence": "PICK_ONE_OF_THE_THREE_BELOW"}}
+    {{"paper_summary": "string", "strengths": ["string", ...], "weaknesses": ["string", ...], "questions_for_authors": ["string", ...], "novelty_analysis": "string", "citation_quality": "string", "reference_usage_quality": "string", "reproducibility": "string", "evidence_mapping": "string", "missing_baselines": ["string", ...], "final_recommendation": "PICK_ONE_OF_THE_FIVE_BELOW", "confidence": "PICK_ONE_OF_THE_THREE_BELOW"}}
     (final_recommendation must be exactly one of: "reject", "weak_reject", "borderline", "weak_accept", "accept" --
     this is a REAL decision you must make, not a fixed value to copy and not a habitual hedge. Apply this rubric
     in order. Real peer review is NOT "all signals must agree or it's borderline" -- a paper can have real
@@ -476,6 +539,9 @@ final_review_agent:
     === CITATION ASSESSMENT ===
     {citation_summary}
 
+    === REFERENCE USAGE ASSESSMENT ===
+    {reference_usage_summary}
+
     === EVIDENCE & REPRODUCIBILITY ASSESSMENT ===
     {evidence_summary}
 
@@ -495,13 +561,16 @@ final_review_agent:
        reviewer would ask, based on the gaps found above.
     5. novelty_analysis: 2-3 sentence synthesis of the novelty assessment.
     6. citation_quality: 2-3 sentence synthesis of the citation assessment.
-    7. reproducibility: 2-3 sentence synthesis of the reproducibility findings.
-    8. evidence_mapping: 2-3 sentence synthesis of how well claims were
+    7. reference_usage_quality: 2-3 sentence synthesis of the reference
+       usage assessment (how well the paper engages with its own
+       bibliography, not just whether it's complete).
+    8. reproducibility: 2-3 sentence synthesis of the reproducibility findings.
+    9. evidence_mapping: 2-3 sentence synthesis of how well claims were
        supported by evidence.
-    9. missing_baselines: copy directly from the methodology assessment above.
-    10. final_recommendation: one of "reject", "weak_reject", "borderline",
+    10. missing_baselines: copy directly from the methodology assessment above.
+    11. final_recommendation: one of "reject", "weak_reject", "borderline",
         "weak_accept", "accept", based on the overall balance of findings.
-    11. confidence: your confidence in this recommendation, informed by
+    12. confidence: your confidence in this recommendation, informed by
         Reflection's overall_confidence above.
 
     Respond with ONLY the JSON object described above.

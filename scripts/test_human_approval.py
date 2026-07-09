@@ -23,11 +23,13 @@ from core.agents.literature_rag_agent import LiteratureRAGAgent
 from core.agents.methodology_agent import MethodologyAgent
 from core.agents.novelty_agent import NoveltyAgent
 from core.agents.paper_understanding_agent import PaperUnderstandingAgent
+from core.agents.reference_usage_agent import ReferenceUsageAgent
 from core.agents.reflection_agent import ReflectionAgent
 from core.schemas.agent_output_schemas import (
     AdversarialCritique, CitationAssessment, EvidenceReproducibilityAssessment,
     FigureTableSummary, FinalReview, LiteratureContext, MethodologyAssessment,
-    NoveltyAssessment, ParsedPaper, PaperUnderstandingOutput, ReflectionNotes,
+    NoveltyAssessment, ParsedPaper, PaperUnderstandingOutput, ReferenceUsageAssessment,
+    ReflectionNotes,
 )
 
 # --- Mock every agent so no LLM/retrieval is touched. Reflection returns a
@@ -38,6 +40,8 @@ PaperUnderstandingAgent.run = lambda self, inputs: PaperUnderstandingOutput(
 LiteratureRAGAgent.run = lambda self, inputs: LiteratureContext(query_text="q", matches=[])
 FigureTableAgent.run = lambda self, inputs: FigureTableSummary(
     figure_summaries=[], table_summaries=[], extraction_consistency_note="ok")
+ReferenceUsageAgent.run = lambda self, inputs: ReferenceUsageAssessment(
+    reference_verdicts=[], overall_rating="good", summary="s")
 NoveltyAgent.run = lambda self, inputs: NoveltyAssessment(
     contribution_verdicts=[], overlapping_work=[], novelty_rating="high", reasoning="r")
 MethodologyAgent.run = lambda self, inputs: MethodologyAssessment(
@@ -53,7 +57,7 @@ ReflectionAgent.run = lambda self, inputs: ReflectionNotes(
 FinalReviewAgent.run = lambda self, inputs: FinalReview(
     paper_summary="s", strengths=["good idea"], weaknesses=["thin ablations"],
     questions_for_authors=["why no baseline X?"], novelty_analysis="n",
-    citation_quality="c", reproducibility="r", evidence_mapping="e",
+    citation_quality="c", reference_usage_quality="ru", reproducibility="r", evidence_mapping="e",
     missing_baselines=[], final_recommendation="weak_accept", confidence="medium")
 
 from core.graph.build_graph import build_review_graph  # noqa: E402 (patches must apply first)
