@@ -48,8 +48,9 @@ yours, but worth knowing:**
 
 **Verify the setup works:**
 ```bash
-pytest tests/unit -v                          # 43 tests, should all pass
+pytest tests/unit -v                          # 65 tests, should all pass
 python -m scripts.test_graph_topology          # graph structure, mocked, fast
+python -m scripts.test_human_approval          # human-in-the-loop interrupt/resume, mocked, fast
 python -m uvicorn server.main:app --reload --port 8000   # then open localhost:8000
 ```
 
@@ -65,14 +66,14 @@ Detailed docs for each area are at the repo root: `RAG_ARCHITECTURE.md`,
 | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | PDF parsing (Docling)                                       | ✅ Real, tested on real PDFs — now also runs prompt-injection guardrails on every text field (see `QUALITY_GATES.md`) |
 | RAG — paper's own index (hybrid dense+BM25)                 | ✅ Real, tested, live-queryable                                                                              |
-| RAG — persistent literature corpus                          | ✅ Real, real ICLR-2017 data indexed (389 papers, train+dev) — see `PEERREAD_CORPUS_MODULE.md`               |
+| RAG — persistent literature corpus                          | ✅ Real, real ICLR-2017 data indexed (389 papers, train+dev) — see `PEERREAD_CORPUS_MODULE.md`. Optionally augmented at review time by live arXiv/Semantic Scholar queries (`core/rag/live_sources/`, on by default, degrades gracefully offline) |
 | Figure/table vision analysis                                | ✅ Real — vision model pulled (`qwen2.5vl:7b`) and `VISION__ENABLED=true`, verified end-to-end on GPU        |
 | 10 review agents (9 original + Adversarial Critic, incl. 2 novelty implementations) | ✅ All real, tested individually and together — Adversarial Critic attacks Methodology/Citation/Evidence's verdicts, feeds Reflection |
 | LangGraph orchestration                                     | ✅ Built + verified (mocked topology test, a real ~20min Ollama run, AND now live through the dashboard) — see `LANGGRAPH_ORCHESTRATION.md` / `UI_WORK.md` |
-| Live SSE dashboard                                          | ✅ Real, working — every agent + Final Review/Human Approval/History/System-Health views render real data, no placeholder cards left except `human_approval`'s true interrupt/resume (Phase 2) |
-| Human-in-the-loop approval                                  | ⚠️ Partial — the view shows the real final review and `POST /api/approval/{run_id}` genuinely persists a decision; the graph still doesn't pause mid-run to wait for one (see §7 item 2) |
+| Live SSE dashboard                                          | ✅ Real, working — every agent + Final Review/Human Approval/History/System-Health views render real data, no placeholder cards left |
+| Human-in-the-loop approval                                  | ✅ Real — the review graph genuinely pauses mid-run at a LangGraph `interrupt()` (`core/graph/nodes.py::human_approval`); `POST /api/approval/{run_id}` resumes it for real via `Command(resume=...)` AND persists the decision to `human_approvals` (see §7 item 2) |
 | Review persistence (MySQL)                                  | ✅ Real — `reviewed_papers`/`review_assessments`/`reflection_flags`/`human_approvals` all written for real, best-effort (a DB hiccup never breaks a live review); MySQL running locally on port 3307 |
-| **Evaluation harness (PeerRead test split, accuracy/F1/κ)** | ✅ Built and run for real (`core/eval/peerread_harness.py`, `scripts/run_peerread_evaluation.py`) — see run results in §7 item 3 |
+| **Evaluation harness (PeerRead test split, accuracy/F1/κ)** | ✅ Built and run for real (`core/eval/peerread_harness.py`, `scripts/run_peerread_evaluation.py`) — see run results in §7 item 3. Not yet re-run since the Adversarial Critic landed |
 | Agent-output quality gates (DeepEval/RAGAS)                 | ✅ Built, both fixed from a non-working shelved branch and verified live — see `QUALITY_GATES.md`. Optional/offline, not wired into the default eval run yet |
 
 ## 4. Branch history — what was merged, what wasn't, and why
@@ -88,8 +89,9 @@ except a common bare initial commit (`9447376`/`79f586a`) — except
 | `arko_novelty_agent`                              | **Merged**                 | Complete, 19/19-tested embedding-based novelty scorer — moved to `core/agents/novelty/`                                                                                                                                            |
 | `saumya-VLM`                                      | **Superseded, not merged** | Cloud Gemini API prototype; the *idea* (vision analysis) was rebuilt properly, locally, from scratch as `core/parsing/figure_analyzer.py`                                                                                          |
 | `vivek-RAGAS-deepeval`                            | **Integrated (fixed, not the original code)** | Right idea, and once the eval harness existed it was worth reviving — but none of its 3 files ran as originally written. Ported + fixed into `core/eval/deepeval_quality.py` / `ragas_quality.py` / `core/utils/guardrails.py`, see `QUALITY_GATES.md` for the exact bugs (bad local-model routing in both DeepEval and RAGAS, a wrong field reference, an environment-incompatibility import blocker in `ragas` itself, and a deprecated regex-flag pattern in guardrails). |
-| `tamanna-kanwar-local-llm-fine-tuning`            | **Real leakage found; a fix + model retarget was in progress as this was last edited** | This branch's own continuation, `finetune/` (a separate nested git repo, gitignored from this project), was reviewed and found to have **confirmed PeerRead test-split leakage**: 34 of the 38 graded test papers appear in its training data (a different HF dataset happened to scrape the same underlying papers; the data-hygiene intent was real but the validator only checked a `source` string, never actual paper identity). It also still targets a toy `distilgpt2` rather than the model this project actually deploys. A fix (purge the leaked rows, make the validator check real paper identity, retarget to `Qwen/Qwen2.5-7B-Instruct` per `.env`'s `LLM__PROVIDER`) was dispatched — check `finetune/`'s own git log and this file's next edit for whether it landed. |
+| `tamanna-kanwar-local-llm-fine-tuning`            | **Real leakage found and fixed** | This branch's own continuation, `finetune/` (a separate nested git repo, gitignored from this project), was found to have **confirmed PeerRead test-split leakage**: 34 of the 38 graded test papers appeared in its training data (a different HF dataset happened to scrape the same underlying papers; the data-hygiene intent was real but the validator only checked a `source` string, never actual paper identity). Fixed: purged 73 leaked rows across train/validation/test, rewrote `validate_finetune_data.py` to check real title/abstract identity against the protected test set (verified against a deliberately-reintroduced leak), retargeted from a toy `distilgpt2` to `Qwen/Qwen2.5-7B-Instruct` (the model this project actually deploys, per `.env`'s `LLM__PROVIDER`), added QLoRA (4-bit NF4), and ran a real scoped-down validation training pass (loss 2.17→1.93). A full production fine-tuning run over the full ~11k-row dataset is still open — needs explicit scoping given shared GPU time. |
 | **manik's own follow-up push** (commit `94459cb`) | **Merged**                 | Added the entire missing agent layer: 9 agents + `BaseAgent` + structured-output helper + review-output schemas. The single highest-value push evaluated this session.                                                             |
+| `kanishka-phase2`                                 | **Merged (twice, independently) — reconciled** | Real work: live arXiv/Semantic Scholar wiring into `LiteratureRAGAgent` (`core/rag/live_sources/`, on by default), and its own from-scratch build of the same human-in-the-loop interrupt/resume gate this branch had also built in parallel. Both branches' HITL implementations were functionally equivalent (same `interrupt()`/`Command(resume=...)` design, same event contract) but textually diverged enough to conflict on merge — resolved by keeping this branch's superset (adds MySQL persistence via `resume_with_approval`, which kanishka's version didn't have) and dropping the resulting duplicate `/api/approve` endpoint + non-persisting `resume_with_approval` stub that a naive merge would otherwise have left both defined. |
 
 **One real integration conflict, resolved**: manik's `literature_rag_agent.py`
 imported the retired single-index retriever. Rewritten against kanishka's
@@ -141,25 +143,29 @@ assume anything about commit/push state from this document.
    (`stream_mode="updates"`) into real SSE events; the dashboard shows all 9
    agents plus a live-rendered Final Review / Human Approval view instead of
    placeholder cards. See `UI_WORK.md`.
-2. **Human-in-the-loop persistence** — ~~the one remaining big piece~~ **mostly
-   done.** MySQL is running locally (port 3307 — a teammate had already
-   stood up an instance matching this project's own documented port
-   convention; no Docker was available on this machine, and no
-   `docker-compose.yml` exists). `server/pipeline.py` writes
-   `reviewed_papers`/`review_assessments`/`reflection_flags` for real as
-   each run streams, best-effort (a DB hiccup is logged and swallowed,
-   never allowed to break a live review). `POST /api/approval/{run_id}`
-   genuinely persists a decision to `human_approvals`, and `GET
-   /api/history` / `GET /api/history/{trace_id}` surface real past runs in
-   the dashboard. **What's still not built**: a true LangGraph
-   interrupt/resume — the graph still runs start-to-finish in one pass; a
-   human reviews and records a decision on the *completed* result
-   afterward, rather than the graph actually pausing mid-run to wait for
-   one. This was a deliberate scope choice (see the DB-setup/HITL-scope
-   decisions made this session) — revisit only if true mid-run pause/resume
-   becomes a real requirement, since it needs a durable checkpointer
-   (`SqliteSaver`, not the current in-memory one) to survive across
-   separate HTTP requests.
+2. ~~**Human-in-the-loop persistence**~~ — **Done.** MySQL is running locally
+   (port 3307 — a teammate had already stood up an instance matching this
+   project's own documented port convention; no Docker was available on
+   this machine, and no `docker-compose.yml` exists). `server/pipeline.py`
+   writes `reviewed_papers`/`review_assessments`/`reflection_flags` for real
+   as each run streams, best-effort (a DB hiccup is logged and swallowed,
+   never allowed to break a live review). The review graph genuinely pauses
+   mid-run at a real LangGraph `interrupt()` (`core/graph/nodes.py::
+   human_approval`, gated behind `final_review --> human_approval --> END`
+   in `build_graph.py`) — the SSE stream's last event for a fresh run is
+   `human_approval`/`awaiting_approval`, carrying the drafted recommendation
+   for review. `POST /api/approval/{run_id}` resumes that parked run for
+   real via `Command(resume=decision)` (approve as-drafted / reject / revise
+   with an optional recommendation override, which rewrites
+   `final_review.final_recommendation`) AND persists the decision to
+   `human_approvals`; `GET /api/history` / `GET /api/history/{trace_id}`
+   surface real past runs in the dashboard. Uses the in-memory
+   `InMemorySaver` checkpointer, so a parked run only survives within the
+   same server process — a durable checkpointer (`SqliteSaver`) would be
+   needed to survive a server restart while a run is parked, not yet a real
+   requirement. Verified via `scripts/test_human_approval.py` (4 scenarios:
+   approve/reject/override/terse-string-resume) and a live end-to-end run
+   (real PDF upload through real MySQL-persisted decision).
 3. ~~**The evaluation harness (the graded core)**~~ — **Built.**
    `core/eval/peerread_harness.py` + `scripts/run_peerread_evaluation.py`
    load PeerRead's labeled `test` split (`data/peerread_raw/iclr_2017/test/`,
@@ -261,7 +267,7 @@ server/           FastAPI backend for the live SSE dashboard -- pipeline.py stre
                   persists to MySQL; main.py adds /api/approval, /api/history, /api/health
 ai_paper_reviewer_ui.html   The dashboard itself
 scripts/          Manual verification scripts + CLI entry points (incl. run_peerread_evaluation.py)
-tests/unit/       Automated pytest suite (53+ tests)
+tests/unit/       Automated pytest suite (65+ tests)
 data/             Sample PDFs + real ICLR-2017 corpora (data/peerread_raw/, gitignored -- see
                   PEERREAD_CORPUS_MODULE.md for how to regenerate)
 finetune/         A separate, gitignored, nested git repo -- NOT part of this project's own
