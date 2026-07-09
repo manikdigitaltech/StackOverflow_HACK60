@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <text x="60" y="70" font-size="36" font-weight="700" fill="#0f172a">Autonomous AI Paper Reviewer</text>
+  <text x="60" y="104" font-size="19" fill="#64748b">An agentic system that reviews research papers like a human peer reviewer — fully local, evidence-backed, human-approved</text>
+
+  <!-- Input -->
+  <rect x="60" y="180" width="300" height="260" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="210" y="222" font-size="22" font-weight="600" fill="#1e3a8a" text-anchor="middle">INPUT</text>
+  <text x="210" y="262" font-size="18" font-weight="600" fill="#0f172a" text-anchor="middle">Research Paper (PDF)</text>
+  <text x="210" y="300" font-size="16" fill="#334155" text-anchor="middle">Full text &amp; sections</text>
+  <text x="210" y="328" font-size="16" fill="#334155" text-anchor="middle">Figures &amp; tables</text>
+  <text x="210" y="356" font-size="16" fill="#334155" text-anchor="middle">References</text>
+  <text x="210" y="384" font-size="16" fill="#334155" text-anchor="middle">Claims &amp; experiments</text>
+
+  <line x1="360" y1="310" x2="440" y2="310" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- System -->
+  <rect x="450" y="150" width="380" height="320" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="640" y="192" font-size="22" font-weight="600" fill="#4c1d95" text-anchor="middle">AGENTIC REVIEW SYSTEM</text>
+  <text x="640" y="234" font-size="16" fill="#334155" text-anchor="middle">10 specialized agents (LangGraph)</text>
+  <text x="640" y="264" font-size="16" fill="#334155" text-anchor="middle">RAG-grounded literature comparison</text>
+  <text x="640" y="294" font-size="16" fill="#334155" text-anchor="middle">Vision model for figures &amp; tables</text>
+  <text x="640" y="324" font-size="16" fill="#334155" text-anchor="middle">Self-reflection + revision loop</text>
+  <text x="640" y="354" font-size="16" fill="#334155" text-anchor="middle">Prompt-injection guardrails</text>
+  <text x="640" y="384" font-size="16" fill="#334155" text-anchor="middle">Human-in-the-loop approval</text>
+  <text x="640" y="428" font-size="15" font-weight="600" fill="#7c3aed" text-anchor="middle">100% local — Ollama + FAISS, no cloud APIs</text>
+
+  <line x1="830" y1="310" x2="910" y2="310" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- Output -->
+  <rect x="920" y="180" width="300" height="260" rx="14" fill="#d1fae5" stroke="#059669" stroke-width="2"/>
+  <text x="1070" y="222" font-size="22" font-weight="600" fill="#065f46" text-anchor="middle">OUTPUT</text>
+  <text x="1070" y="262" font-size="18" font-weight="600" fill="#0f172a" text-anchor="middle">Structured Peer Review</text>
+  <text x="1070" y="300" font-size="16" fill="#334155" text-anchor="middle">Summary · Strengths · Weaknesses</text>
+  <text x="1070" y="328" font-size="16" fill="#334155" text-anchor="middle">Novelty &amp; reproducibility</text>
+  <text x="1070" y="356" font-size="16" fill="#334155" text-anchor="middle">Rating: Accept → Reject (5-way)</text>
+  <text x="1070" y="384" font-size="16" fill="#334155" text-anchor="middle">Confidence + justification</text>
+
+  <!-- Constraints bar -->
+  <rect x="60" y="520" width="1160" height="130" rx="14" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+  <text x="640" y="558" font-size="20" font-weight="600" fill="#92400e" text-anchor="middle">Hard Constraints</text>
+  <text x="220" y="600" font-size="16" fill="#334155" text-anchor="middle">24 GB GPU budget</text>
+  <text x="220" y="626" font-size="14" fill="#64748b" text-anchor="middle">whole pipeline must fit</text>
+  <text x="520" y="600" font-size="16" fill="#334155" text-anchor="middle">≤ 8B models (or 14B @ 4-bit)</text>
+  <text x="520" y="626" font-size="14" fill="#64748b" text-anchor="middle">Qwen2.5 7B via Ollama</text>
+  <text x="830" y="600" font-size="16" fill="#334155" text-anchor="middle">PeerRead ICLR-2017 benchmark</text>
+  <text x="830" y="626" font-size="14" fill="#64748b" text-anchor="middle">fixed 80/10/10 split, test-set metrics</text>
+  <text x="1090" y="600" font-size="16" fill="#334155" text-anchor="middle">Human approval required</text>
+  <text x="1090" y="626" font-size="14" fill="#64748b" text-anchor="middle">before any final verdict</text>
+</svg>

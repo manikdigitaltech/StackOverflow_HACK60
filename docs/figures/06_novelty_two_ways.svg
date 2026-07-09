@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <text x="60" y="70" font-size="36" font-weight="700" fill="#0f172a">Novelty Assessment — Two Complementary Signals</text>
+  <text x="60" y="104" font-size="19" fill="#64748b">A deterministic similarity score AND grounded reasoning about which contributions are new</text>
+
+  <!-- Embedding column -->
+  <rect x="60" y="150" width="540" height="420" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="330" y="192" font-size="21" font-weight="700" fill="#1e3a8a" text-anchor="middle">Embedding-Based Scorer</text>
+  <text x="330" y="220" font-size="16" font-style="italic" fill="#1e3a8a" text-anchor="middle">"How similar is this, numerically, to known work?"</text>
+
+  <rect x="110" y="248" width="440" height="46" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="330" y="277" font-size="15" fill="#334155" text-anchor="middle">Embed 4 sections independently (MiniLM)</text>
+  <line x1="330" y1="294" x2="330" y2="310" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="110" y="314" width="440" height="46" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="330" y="343" font-size="15" fill="#334155" text-anchor="middle">FAISS cosine search vs. local corpus (self excluded)</text>
+  <line x1="330" y1="360" x2="330" y2="376" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="110" y="380" width="440" height="46" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="330" y="409" font-size="15" fill="#334155" text-anchor="middle">Weighted score: abstract 40% · method 35% · concl 15% · refs 10%</text>
+  <line x1="330" y1="426" x2="330" y2="442" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="110" y="446" width="440" height="46" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="330" y="475" font-size="15" fill="#334155" text-anchor="middle">Novelty = 100 − similarity → 5 bands + recommendation</text>
+
+  <text x="330" y="528" font-size="15" font-weight="600" fill="#1e3a8a" text-anchor="middle">Zero LLM calls · zero hallucination risk · fast</text>
+  <text x="330" y="552" font-size="14" fill="#64748b" text-anchor="middle">≥95% similarity ⇒ duplicate override · full decision trace</text>
+
+  <!-- LLM column -->
+  <rect x="680" y="150" width="540" height="420" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="950" y="192" font-size="21" font-weight="700" fill="#4c1d95" text-anchor="middle">LLM-Based Novelty Agent</text>
+  <text x="950" y="220" font-size="16" font-style="italic" fill="#4c1d95" text-anchor="middle">"Which specific contributions are novel, and why?"</text>
+
+  <rect x="730" y="248" width="440" height="46" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="950" y="277" font-size="15" fill="#334155" text-anchor="middle">Reads the paper briefing + retrieved literature (Index B)</text>
+  <line x1="950" y1="294" x2="950" y2="310" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="730" y="314" width="440" height="46" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="950" y="343" font-size="15" fill="#334155" text-anchor="middle">One structured JSON call — hard grounding constraints</text>
+  <line x1="950" y1="360" x2="950" y2="376" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="730" y="380" width="440" height="46" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="950" y="409" font-size="15" fill="#334155" text-anchor="middle">Per-contribution verdict + reasoning prose</text>
+  <line x1="950" y1="426" x2="950" y2="442" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="730" y="446" width="440" height="46" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="950" y="475" font-size="15" fill="#334155" text-anchor="middle">Validated against a Pydantic schema (NoveltyAssessment)</text>
+
+  <text x="950" y="528" font-size="15" font-weight="600" fill="#4c1d95" text-anchor="middle">Qualitative &amp; specific · literature-grounded reasoning</text>
+  <text x="950" y="552" font-size="14" fill="#64748b" text-anchor="middle">participates in the reflection / revision loop</text>
+
+  <!-- Bottom combined -->
+  <rect x="240" y="610" width="800" height="70" rx="12" fill="#d1fae5" stroke="#059669" stroke-width="2"/>
+  <text x="640" y="640" font-size="17" font-weight="600" fill="#065f46" text-anchor="middle">Together: "87% similar to a known paper" (math) + "the routing mechanism is novel,</text>
+  <text x="640" y="664" font-size="17" font-weight="600" fill="#065f46" text-anchor="middle">but the compression scheme overlaps prior work" (reasoning)</text>
+</svg>

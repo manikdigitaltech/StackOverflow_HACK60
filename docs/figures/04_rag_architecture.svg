@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <text x="60" y="70" font-size="36" font-weight="700" fill="#0f172a">RAG — Two Indexes, Two Different Questions</text>
+  <text x="60" y="104" font-size="19" fill="#64748b">One index can't answer both "what does this paper say?" and "has this been done before?"</text>
+
+  <!-- Index A column -->
+  <rect x="60" y="150" width="540" height="410" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="330" y="192" font-size="22" font-weight="700" fill="#1e3a8a" text-anchor="middle">Index A — Paper-RAG</text>
+  <text x="330" y="222" font-size="17" font-style="italic" fill="#1e3a8a" text-anchor="middle">"What does the submitted paper actually say?"</text>
+
+  <text x="100" y="268" font-size="16" font-weight="600" fill="#0f172a">Scope</text>
+  <text x="330" y="268" font-size="16" fill="#334155">only the paper under review</text>
+  <text x="100" y="302" font-size="16" font-weight="600" fill="#0f172a">Lifecycle</text>
+  <text x="330" y="302" font-size="16" fill="#334155">ephemeral — rebuilt per review</text>
+  <text x="100" y="336" font-size="16" font-weight="600" fill="#0f172a">Chunks</text>
+  <text x="330" y="336" font-size="16" fill="#334155">section-aware, ~400 tokens</text>
+  <text x="100" y="370" font-size="16" font-weight="600" fill="#0f172a">Embeddings</text>
+  <text x="330" y="370" font-size="16" fill="#334155">bge-small-en-v1.5</text>
+  <text x="100" y="404" font-size="16" font-weight="600" fill="#0f172a">Retrieval</text>
+  <text x="330" y="404" font-size="16" fill="#334155">hybrid: dense (FAISS) + BM25,</text>
+  <text x="330" y="428" font-size="16" fill="#334155">fused with Reciprocal Rank Fusion</text>
+
+  <rect x="100" y="466" width="460" height="66" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="330" y="494" font-size="15" font-weight="600" fill="#1e3a8a" text-anchor="middle">Used by: Citation &amp; Evidence agents</text>
+  <text x="330" y="518" font-size="14" fill="#64748b" text-anchor="middle">ground every claim in the paper's own text</text>
+
+  <!-- Index B column -->
+  <rect x="680" y="150" width="540" height="410" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="950" y="192" font-size="22" font-weight="700" fill="#4c1d95" text-anchor="middle">Index B — Literature-RAG</text>
+  <text x="950" y="222" font-size="17" font-style="italic" fill="#4c1d95" text-anchor="middle">"Has anyone published this before?"</text>
+
+  <text x="720" y="268" font-size="16" font-weight="600" fill="#0f172a">Scope</text>
+  <text x="950" y="268" font-size="16" fill="#334155">PeerRead corpus (prior work)</text>
+  <text x="720" y="302" font-size="16" font-weight="600" fill="#0f172a">Lifecycle</text>
+  <text x="950" y="302" font-size="16" fill="#334155">persistent — built once offline</text>
+  <text x="720" y="336" font-size="16" font-weight="600" fill="#0f172a">Granularity</text>
+  <text x="950" y="336" font-size="16" fill="#334155">one vector per paper (title+abstract)</text>
+  <text x="720" y="370" font-size="16" font-weight="600" fill="#0f172a">Embeddings</text>
+  <text x="950" y="370" font-size="16" fill="#334155">SPECTER2 (scientific-similarity)</text>
+  <text x="720" y="404" font-size="16" font-weight="600" fill="#0f172a">Retrieval</text>
+  <text x="950" y="404" font-size="16" fill="#334155">dense-only, with a leakage guard —</text>
+  <text x="950" y="428" font-size="16" fill="#334155">a paper never matches itself</text>
+
+  <rect x="720" y="466" width="460" height="66" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="950" y="494" font-size="15" font-weight="600" fill="#4c1d95" text-anchor="middle">Used by: Novelty &amp; Citation agents</text>
+  <text x="950" y="518" font-size="14" fill="#64748b" text-anchor="middle">check prior art &amp; citation coverage gaps</text>
+
+  <!-- Live sources -->
+  <rect x="680" y="600" width="540" height="80" rx="12" fill="#f0fdf4" stroke="#059669" stroke-width="2" stroke-dasharray="8 5"/>
+  <text x="950" y="632" font-size="16" font-weight="600" fill="#065f46" text-anchor="middle">+ Live enrichment (optional, fail-soft)</text>
+  <text x="950" y="658" font-size="14" fill="#334155" text-anchor="middle">arXiv &amp; Semantic Scholar APIs fill remaining slots — an outage never breaks a review</text>
+  <line x1="950" y1="600" x2="950" y2="568" stroke="#059669" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arr)"/>
+
+  <text x="60" y="650" font-size="15" fill="#64748b">Both indexes run on local FAISS —</text>
+  <text x="60" y="674" font-size="15" fill="#64748b">no cloud vector store, no data leaves the machine.</text>
+</svg>

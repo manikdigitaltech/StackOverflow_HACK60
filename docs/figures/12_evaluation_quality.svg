@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <text x="60" y="70" font-size="36" font-weight="700" fill="#0f172a">Evaluation &amp; Quality Gates</text>
+  <text x="60" y="104" font-size="19" fill="#64748b">Two layers: does the final verdict match ground truth, AND was the reasoning behind it sound?</text>
+
+  <!-- Layer 1 -->
+  <rect x="60" y="160" width="1160" height="200" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="100" y="200" font-size="21" font-weight="700" fill="#1e3a8a">Layer 1 — PeerRead Benchmark Harness (outcome quality)</text>
+  <text x="100" y="232" font-size="16" fill="#334155">Fixed evaluation set: PeerRead ICLR-2017, built-in 80/10/10 split — metrics reported on the test set only</text>
+
+  <rect x="100" y="256" width="250" height="80" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="225" y="288" font-size="16" font-weight="600" fill="#1e3a8a" text-anchor="middle">Accuracy</text>
+  <text x="225" y="314" font-size="14" fill="#64748b" text-anchor="middle">accept/reject vs. ground truth</text>
+
+  <rect x="380" y="256" width="250" height="80" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="505" y="288" font-size="16" font-weight="600" fill="#1e3a8a" text-anchor="middle">Precision · Recall · F1</text>
+  <text x="505" y="314" font-size="14" fill="#64748b" text-anchor="middle">per-class quality</text>
+
+  <rect x="660" y="256" width="250" height="80" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="785" y="288" font-size="16" font-weight="600" fill="#1e3a8a" text-anchor="middle">Cohen's κ</text>
+  <text x="785" y="314" font-size="14" fill="#64748b" text-anchor="middle">agreement beyond chance</text>
+
+  <rect x="940" y="256" width="250" height="80" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="1065" y="288" font-size="16" font-weight="600" fill="#1e3a8a" text-anchor="middle">Reviewer agreement</text>
+  <text x="1065" y="314" font-size="14" fill="#64748b" text-anchor="middle">vs. real expert reviews</text>
+
+  <!-- Layer 2 -->
+  <rect x="60" y="400" width="1160" height="230" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="100" y="440" font-size="21" font-weight="700" fill="#4c1d95">Layer 2 — Reasoning Quality Gates (process quality)</text>
+  <text x="100" y="472" font-size="16" fill="#334155">A verdict can land on the right side of accept/reject while resting on a hallucinated claim — these catch that</text>
+
+  <rect x="100" y="500" width="340" height="100" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="270" y="532" font-size="16" font-weight="600" fill="#4c1d95" text-anchor="middle">DeepEval — G-Eval on Novelty</text>
+  <text x="270" y="558" font-size="14" fill="#334155" text-anchor="middle">is every novelty claim actually compared</text>
+  <text x="270" y="580" font-size="14" fill="#334155" text-anchor="middle">against retrieved literature?</text>
+
+  <rect x="470" y="500" width="340" height="100" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="640" y="532" font-size="16" font-weight="600" fill="#4c1d95" text-anchor="middle">DeepEval — Hallucination check</text>
+  <text x="640" y="558" font-size="14" fill="#334155" text-anchor="middle">Methodology claims verified against the</text>
+  <text x="640" y="580" font-size="14" fill="#334155" text-anchor="middle">paper's own text as context</text>
+
+  <rect x="840" y="500" width="340" height="100" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="1010" y="532" font-size="16" font-weight="600" fill="#4c1d95" text-anchor="middle">RAGAS — Retrieval quality</text>
+  <text x="1010" y="558" font-size="14" fill="#334155" text-anchor="middle">scores individual RAG retrieval calls,</text>
+  <text x="1010" y="580" font-size="14" fill="#334155" text-anchor="middle">not just the final synthesized answer</text>
+
+  <text x="60" y="680" font-size="15" fill="#64748b">All judge models route to local Ollama (custom OllamaJudgeModel) — the evaluation layer is as local as the pipeline itself.</text>
+</svg>
