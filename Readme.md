@@ -2,5 +2,5 @@
 
 
 ***
-Please create new branches with your name
+Code for the novelty agent
 ***
