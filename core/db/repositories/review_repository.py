@@ -4,9 +4,8 @@ trail that every LangGraph node writes to as it completes.
 """
 
 from typing import Optional, List, Any
-import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 
 from core.db.models import ReviewedPaper, ReviewAssessment, ReviewedPaperStatus
 
@@ -41,7 +40,12 @@ class ReviewRepository:
         if rp:
             rp.status = status
             if status == ReviewedPaperStatus.completed:
-                rp.completed_at = datetime.datetime.utcnow()
+                # func.now(), not datetime.utcnow(): every other timestamp
+                # column here uses MySQL's own NOW() via server_default,
+                # which returns the DB server's local time, not UTC -- mixing
+                # the two produced a 5.5-hour-skewed completed_at (IST vs UTC)
+                # that couldn't be compared against created_at/decided_at.
+                rp.completed_at = func.now()
             self._session.flush()
 
     def save_assessment(

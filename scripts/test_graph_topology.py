@@ -1,17 +1,23 @@
 """
 Fast structural test of the review graph: mocks every agent's .run() so this
-completes in milliseconds, and specifically checks the two things that were
+completes in milliseconds, and specifically checks the things that were
 genuinely uncertain about LangGraph's execution semantics before this test
 existed:
   1. figure_table's one-shot output (wired directly to final_review, not
      through reflection) is actually visible in final_review's inputs.
   2. the bounded revision loop actually re-runs the 4 assessment agents with
      revision_feedback set, and terminates instead of looping forever.
+  3. adversarial_critic (attacks methodology/citation/evidence only, never
+     novelty) runs alongside reflection off the same 3 assessments, its
+     output is actually visible in reflection's inputs, and it re-fires on
+     the revision pass "for free" (via its own 3-source join re-triggering,
+     not a direct edge from prepare_revision -- see build_graph.py).
 
 Run with: python -m scripts.test_graph_topology
 """
 from unittest.mock import MagicMock
 
+from core.agents.adversarial_critic_agent import AdversarialCriticAgent
 from core.agents.citation_agent import CitationAgent
 from core.agents.evidence_reproducibility_agent import EvidenceReproducibilityAgent
 from core.agents.figure_table_agent import FigureTableAgent
@@ -22,13 +28,16 @@ from core.agents.novelty_agent import NoveltyAgent
 from core.agents.paper_understanding_agent import PaperUnderstandingAgent
 from core.agents.reflection_agent import ReflectionAgent
 from core.schemas.agent_output_schemas import (
-    CitationAssessment, EvidenceReproducibilityAssessment, FigureTableSummary,
+    AdversarialAttack, AdversarialCritique, CitationAssessment,
+    EvidenceReproducibilityAssessment, FigureTableSummary,
     FinalReview, LiteratureContext, MethodologyAssessment, NoveltyAssessment,
     ParsedPaper, PaperUnderstandingOutput, ReflectionFlag, ReflectionNotes,
 )
 
 call_log = []
 citation_calls = []
+adversarial_critic_calls = []
+reflection_calls = []
 
 
 def _mk_reflection_notes(revision_feedback_seen):
@@ -76,8 +85,23 @@ EvidenceReproducibilityAgent.run = lambda self, inputs: (
 )[1]
 
 
+def _adversarial_critic_run(self, inputs):
+    call_log.append("adversarial_critic")
+    adversarial_critic_calls.append(inputs)
+    return AdversarialCritique(
+        attacks=[AdversarialAttack(
+            source_agent="methodology", attacked_verdict="v", counter_argument="c", severity="moderate",
+        )],
+        weakest_agent="methodology", summary="s",
+    )
+
+
+AdversarialCriticAgent.run = _adversarial_critic_run
+
+
 def _reflection_run(self, inputs):
     call_log.append("reflection")
+    reflection_calls.append(inputs)
     seen_feedback = citation_calls and citation_calls[-1]
     return _mk_reflection_notes(seen_feedback)
 
@@ -110,6 +134,7 @@ print("Call order:", call_log)
 print("Citation calls' revision_feedback values:", citation_calls)
 print("revision_count in final state:", result.get("revision_count"))
 print("final_review present:", result.get("final_review") is not None)
+print("adversarial_critique present:", result.get("adversarial_critique") is not None)
 
 assert call_log.count("citation") == 2, f"expected citation to run twice (initial + 1 revision), got {call_log.count('citation')}"
 assert citation_calls[0] is None, "first citation call should have no revision_feedback"
@@ -117,5 +142,29 @@ assert citation_calls[1], "second citation call should have revision_feedback se
 assert call_log.count("figure_table") == 1, "figure_table should run exactly once, never re-triggered by the revision loop"
 assert result["revision_count"] == 1
 assert result["final_review"] is not None
+
+# --- adversarial_critic wiring ---
+# It has no direct edge from prepare_revision (see build_graph.py) -- it
+# should still re-fire on the revision pass "for free" because its own
+# 3-source join (methodology/citation/evidence_reproducibility) re-triggers
+# when those get re-run. If this count were 1 instead of 2, that would mean
+# the critic went stale after a revision (attacking pass-1 verdicts against
+# pass-2 reflection) -- exactly the kind of join bug this test exists to catch.
+assert call_log.count("adversarial_critic") == 2, (
+    f"expected adversarial_critic to run twice (initial + 1 revision, re-fired "
+    f"via its own join, not a direct prepare_revision edge), got {call_log.count('adversarial_critic')}"
+)
+assert all("evidence_assessment" in c and "citation_assessment" in c and "methodology_assessment" in c
+           for c in adversarial_critic_calls), "adversarial_critic should receive methodology/citation/evidence, never novelty"
+assert all("novelty_assessment" not in c for c in adversarial_critic_calls), (
+    "adversarial_critic is scoped OFF novelty -- it should never receive a novelty_assessment input"
+)
+
+# --- reflection now also depends on adversarial_critic's output ---
+assert call_log.count("reflection") == 2, f"expected reflection to run twice, got {call_log.count('reflection')}"
+assert all(c.get("adversarial_critique") is not None for c in reflection_calls), (
+    "reflection should receive a real adversarial_critique on every pass -- "
+    "if this is None, reflection's AND-join isn't actually waiting on adversarial_critic"
+)
 
 print("\nALL GRAPH TOPOLOGY ASSERTIONS PASSED")

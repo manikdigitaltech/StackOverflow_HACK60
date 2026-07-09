@@ -24,17 +24,19 @@ dashboard) wants Streamlit's native chart/table widgets instead.
 
 - **`server/pipeline.py`** — `run_pipeline(run_id, pdf_path)`: a generator
   yielding one event per real stage as it *actually* finishes (parse → vision
-  → chunk → paper-RAG build → literature-RAG → novelty). Stages that don't
-  exist in the codebase yet are yielded with `status="not_implemented"`
-  rather than faked — the UI never shows an agent "completing" work no code
-  did. Also exposes `query_paper_index()` (live hybrid retrieval against the
-  just-built paper index) and `check_system_health()` (real probes: Ollama
-  reachability + pulled models, MySQL reachability, docling installed,
-  literature index built, checkpoint DB present — every status is a real
-  check, not a hardcoded "Healthy").
+  → chunk → paper-RAG build → literature-RAG → novelty → the full 10-agent
+  LangGraph review → the human-approval interrupt), persisting each judgment
+  agent's output and reflection's flags to MySQL as they complete. Also
+  exposes `resume_with_approval()` (resumes a parked run for real and
+  persists the decision), `query_paper_index()` (live hybrid retrieval
+  against the just-built paper index), and `check_system_health()` (real
+  probes: Ollama reachability + pulled models, MySQL reachability, docling
+  installed, literature index built, checkpoint DB present — every status is
+  a real check, not a hardcoded "Healthy").
 - **`server/main.py`** — `POST /api/upload`, `GET /api/stream/{run_id}` (SSE),
-  `GET /api/query/{run_id}`, `GET /api/health`. Serves the dashboard HTML
-  directly via scoped routes, not a directory mount over the whole repo.
+  `GET /api/query/{run_id}`, `POST /api/approval/{run_id}`, `GET /api/health`,
+  `GET /api/history`, `GET /api/history/{trace_id}`. Serves the dashboard
+  HTML directly via scoped routes, not a directory mount over the whole repo.
 
 ## Frontend evolution (`ai_paper_reviewer_ui.html`)
 
@@ -124,8 +126,8 @@ low-through-high, never a numeric score no agent emits) via a category→bar
 percentage mapping. "Export JSON" is now a real client-side download of the
 actual `FinalReview` payload; "Download PDF" honestly alerts that it isn't
 implemented rather than doing nothing silently. Approve/Request
-Changes/Reject buttons similarly alert that no persistence exists yet
-(Phase 2, no MySQL writes) instead of looking actionable and doing nothing.
+Changes/Reject buttons genuinely persist a decision now — see
+"Human-in-the-loop approval" below (this was written before that landed).
 
 The docked panel's Overview tab gained real per-agent rendering for every
 newly-wired card (previously fell through to a raw JSON dump). The
@@ -138,23 +140,29 @@ contribution verdicts, reflection flags); Memory reports whether *this run*
 actually triggered a revision pass, rather than a blanket "no tracking
 exists" now that the loop is real.
 
-## Human-in-the-loop approval (wired)
+## Human-in-the-loop approval (wired, persisted)
 
-The review graph now parks at a LangGraph `interrupt()` after `final_review`
-(see `core/graph/nodes.py::human_approval`). The server surfaces this as an
-`awaiting_approval` SSE event on the `human_approval` stage (with the drafted
-recommendation in `request`), and `POST /api/approve/{run_id}` resumes the
-parked run with the human's decision — the endpoint guards against unknown
-run_ids and double-decisions (409). The UI's Approve/Request Changes/Reject
-buttons are live: they POST the decision (plus the optional comment box, and
-an optional recommendation override on Request Changes), then update the
-approval card, progress bar, activity log, and Final Review/Approval views
-with the decided state. The resume only works in the same server process
-that ran the review (in-memory checkpointer + `_RUNS`), same as every other
-piece of run state in this demo layer.
+The review graph genuinely parks at a LangGraph `interrupt()` after
+`final_review` (see `core/graph/nodes.py::human_approval`). The server
+surfaces this as an `awaiting_approval` SSE event on the `human_approval`
+stage (with the drafted recommendation in `request`), and
+`POST /api/approval/{run_id}` resumes the parked run with the human's
+decision via `Command(resume=...)` — the endpoint guards against unknown
+run_ids and runs that aren't actually awaiting approval (404). The UI's
+Approve/Request Changes/Reject buttons are live: they POST the decision
+(plus the optional comment box, and an optional recommendation override on
+Request Changes), then update the approval card, progress bar, activity log,
+and Final Review/Approval views with the decided state. Two things happen on
+resume, not one: the graph itself resumes for real (a genuine LangGraph
+interrupt/resume, not an after-the-fact record), and the decision is written
+to MySQL's `human_approvals` table via `ApprovalRepository` — so it survives
+a server restart and shows up in the History tab, even though the graph's
+own in-memory checkpointer does not survive one (the resume itself only
+works in the same server process that ran the review, same as every other
+piece of transient run state in `_RUNS`).
 
 ## Not yet done
 
-No approval *persistence* — decisions live in the graph checkpointer for the
-life of the process; nothing writes to `core.db`'s `human_approvals` table
-(Phase 2, no MySQL writes).
+Nothing left unbuilt in this area — see `docs/CONTEXT.md` §7 item 2 for the
+one real limitation (in-memory checkpointer means a parked run doesn't
+survive a server restart).

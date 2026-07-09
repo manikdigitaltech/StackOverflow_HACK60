@@ -20,6 +20,7 @@ from core.config.settings import settings
 from core.schemas.agent_output_schemas import ParsedPaper, Table, Figure
 from core.parsing.section_segmenter import segment_sections
 from core.parsing.reference_extractor import extract_references
+from core.utils.guardrails import sanitize_pdf_text
 
 
 class DoclingParser:
@@ -85,7 +86,7 @@ class DoclingParser:
 
         references = extract_references(text_items)
 
-        return ParsedPaper(
+        parsed_paper = ParsedPaper(
             title=title,
             abstract=abstract,
             sections=sections,
@@ -94,6 +95,43 @@ class DoclingParser:
             references=references,
             source_pdf_path=pdf_path,
         )
+        self._sanitize_in_place(parsed_paper, pdf_path)
+        return parsed_paper
+
+    @staticmethod
+    def _sanitize_in_place(paper: ParsedPaper, pdf_path: str) -> None:
+        """Strips prompt-injection patterns from every free-text field pulled
+        out of the PDF, once, here -- so no downstream agent prompt has to
+        think about untrusted content. See core/utils/guardrails.py."""
+        any_triggered = False
+
+        paper.title, triggered = sanitize_pdf_text(paper.title)
+        any_triggered = any_triggered or triggered
+        paper.abstract, triggered = sanitize_pdf_text(paper.abstract)
+        any_triggered = any_triggered or triggered
+
+        for section in paper.sections:
+            section.text, triggered = sanitize_pdf_text(section.text)
+            any_triggered = any_triggered or triggered
+
+        for table in paper.tables:
+            table.markdown, triggered = sanitize_pdf_text(table.markdown)
+            any_triggered = any_triggered or triggered
+            if table.caption:
+                table.caption, triggered = sanitize_pdf_text(table.caption)
+                any_triggered = any_triggered or triggered
+
+        for figure in paper.figures:
+            if figure.caption:
+                figure.caption, triggered = sanitize_pdf_text(figure.caption)
+                any_triggered = any_triggered or triggered
+
+        for reference in paper.references:
+            reference.raw_text, triggered = sanitize_pdf_text(reference.raw_text)
+            any_triggered = any_triggered or triggered
+
+        if any_triggered:
+            print(f"[DoclingParser] Guardrail: adversarial pattern(s) stripped from '{pdf_path}'.")
 
     @staticmethod
     def _table_to_markdown(table_item: TableItem, doc) -> str:

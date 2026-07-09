@@ -40,6 +40,7 @@ sqlalchemy>=2.0
 alembic
 pymysql
 cryptography            # required by pymysql for auth on MySQL 8
+uvicorn
 
 # --- UI ---
 streamlit
@@ -54,3 +55,8 @@ python-dotenv
 
 # --- Testing (kanishka RAG merge) ---
 pytest
+
+# --- Agent/RAG quality gates (core/eval/deepeval_quality.py, ragas_quality.py) ---
+deepeval>=4.0
+ragas>=0.4
+datasets>=5.0
