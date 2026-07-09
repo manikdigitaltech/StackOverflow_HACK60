@@ -14,6 +14,7 @@ from unittest.mock import MagicMock
 
 from langgraph.types import Command
 
+from core.agents.adversarial_critic_agent import AdversarialCriticAgent
 from core.agents.citation_agent import CitationAgent
 from core.agents.evidence_reproducibility_agent import EvidenceReproducibilityAgent
 from core.agents.figure_table_agent import FigureTableAgent
@@ -24,9 +25,9 @@ from core.agents.novelty_agent import NoveltyAgent
 from core.agents.paper_understanding_agent import PaperUnderstandingAgent
 from core.agents.reflection_agent import ReflectionAgent
 from core.schemas.agent_output_schemas import (
-    CitationAssessment, EvidenceReproducibilityAssessment, FigureTableSummary,
-    FinalReview, LiteratureContext, MethodologyAssessment, NoveltyAssessment,
-    ParsedPaper, PaperUnderstandingOutput, ReflectionNotes,
+    AdversarialCritique, CitationAssessment, EvidenceReproducibilityAssessment,
+    FigureTableSummary, FinalReview, LiteratureContext, MethodologyAssessment,
+    NoveltyAssessment, ParsedPaper, PaperUnderstandingOutput, ReflectionNotes,
 )
 
 # --- Mock every agent so no LLM/retrieval is touched. Reflection returns a
@@ -45,6 +46,8 @@ CitationAgent.run = lambda self, inputs: CitationAssessment(
     coverage_verdicts=[], citation_quality_rating="good", reasoning="r")
 EvidenceReproducibilityAgent.run = lambda self, inputs: EvidenceReproducibilityAssessment(
     claim_verdicts=[], reproducibility_verdicts=[], overall_rating="good", reasoning="r")
+AdversarialCriticAgent.run = lambda self, inputs: AdversarialCritique(
+    attacks=[], weakest_agent="methodology", summary="nothing worth attacking")
 ReflectionAgent.run = lambda self, inputs: ReflectionNotes(
     flags=[], needs_revision=False, overall_confidence="high", summary="clean")
 FinalReviewAgent.run = lambda self, inputs: FinalReview(

@@ -154,6 +154,23 @@ class ReflectionNotes(BaseModel):
     summary: str
 
 
+class AdversarialAttack(BaseModel):
+    # Deliberately excludes "novelty" -- the adversarial critic is scoped to
+    # only Methodology, Citation, and Evidence & Reproducibility.
+    source_agent: Literal["methodology", "citation", "evidence_reproducibility"]
+    attacked_verdict: str    # the EXACT verdict/note/rating being attacked, quoted or closely
+                              # paraphrased from that agent's own output -- not a vague summary
+    counter_argument: str    # a concrete rebuttal engaging with the specific evidence cited,
+                              # not a restatement of the assessment's own reasoning
+    severity: Literal["minor", "moderate", "major"]
+
+
+class AdversarialCritique(BaseModel):
+    attacks: List[AdversarialAttack]
+    weakest_agent: Literal["methodology", "citation", "evidence_reproducibility"]
+    summary: str
+
+
 class FigureSummary(BaseModel):
     figure_id: str
     interpretation: str            # what this figure appears to show, grounded in caption text only (no vision)

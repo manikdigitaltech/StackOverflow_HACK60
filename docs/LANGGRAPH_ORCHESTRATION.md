@@ -1,9 +1,9 @@
 # LangGraph Orchestration — Wiring the Agents Into One Review Run
 
-*Covers `core/graph/`. This is Phase 1 of the post-merge build plan — the
-piece that turns 9 independently-callable agent classes into an actual
-reviewer. Verified both structurally (mocked) and with a real end-to-end
-Ollama run.*
+*Covers `core/graph/`. Turns 10 independently-callable agent classes into
+an actual reviewer, gated behind a mandatory human-approval interrupt.
+Verified structurally (mocked), with real end-to-end Ollama runs, and live
+through the dashboard.*
 
 ## The graph shape
 
@@ -11,23 +11,34 @@ Ollama run.*
                      ┌──────────────────┐
               ┌──────► paper_understanding ─────┐
               │      └──────────────────┘       │
-   START ─────┤      ┌──────────────────┐       ├──► novelty ──────┐
-              ├──────► literature_rag ──────────┘                  │
-              │      └──────────────────┘ ───────────► citation ───┤
-              ├──────► figure_table (also feeds synthesis, below)  │
-              ├──────► methodology ────────────────────────────────┤
-              └──────► evidence_reproducibility ────────────────────┤
-                                                                     ▼
-                                                              reflection
-                                                              /         \
-                                                      [revise]           [proceed]
-                                                          │                  │
-                                                  prepare_revision   ready_for_synthesis
-                                                          │                  │ (+ figure_table)
-                                            (loops back to the 4      final_review
-                                             assessment agents)             │
+   START ─────┤      ┌──────────────────┐       ├──► novelty ────────────┐
+              ├──────► literature_rag ──────────┘                        │
+              │      └──────────────────┘ ───────────► citation ─────────┤
+              ├──────► figure_table (also feeds synthesis, below)        │
+              ├──────► methodology ───────────────────┬───────────────────┤
+              └──────► evidence_reproducibility ───────┴──► adversarial_critic
+                                                                            │
+                                                              (methodology/citation/
+                                                               evidence only, not novelty)
+                                                                            │
                                                                             ▼
-                                                                           END
+                                                                     reflection
+                                                                     /         \
+                                                             [revise]           [proceed]
+                                                                 │                  │
+                                                         prepare_revision   ready_for_synthesis
+                                                                 │                  │ (+ figure_table)
+                                                   (loops back to the 4      final_review
+                                                    assessment agents --            │
+                                                    adversarial_critic re-fires            ▼
+                                                    "for free" via its own AND-join)  human_approval
+                                                                                            │
+                                                                                    (interrupt(): pauses
+                                                                                     until a human resumes
+                                                                                     with a decision)
+                                                                                            │
+                                                                                            ▼
+                                                                                           END
 ```
 
 ## State (`state.py`)
@@ -40,8 +51,9 @@ reducer function.
 
 ## Nodes (`nodes.py`)
 
-`ReviewGraphNodes` constructs all 9 agents **once** (not per node-call), and
-each method is a thin wrapper: read the relevant keys out of state, call the
+`ReviewGraphNodes` constructs all 10 agents **once** (not per node-call,
+including the Adversarial Critic — see `AGENTS_ARCHITECTURE.md`), and each
+method is a thin wrapper: read the relevant keys out of state, call the
 agent's `.run()`, return a partial state update.
 
 Two nodes exist purely for orchestration, not review logic:
@@ -102,21 +114,44 @@ new node (`ready_for_synthesis`) instead, then
 node runs at most once (nothing loops back to it), so there's no ambiguity
 about needing a "fresh" `figure_table` signal on a later revision pass.
 
+## Human-in-the-loop approval gate
+
+`final_review --> human_approval --> END` (see `build_graph.py`). The
+`human_approval` node (`nodes.py`) calls `langgraph.types.interrupt()` with
+the drafted review (recommendation, confidence, summary, strengths,
+weaknesses, questions for authors) as the interrupt payload — this genuinely
+pauses graph execution; `graph.stream()` yields `{"__interrupt__": (...)}`
+and returns control to the caller. `server/pipeline.py` surfaces this as a
+`human_approval`/`awaiting_approval` SSE event. Resuming requires
+`Command(resume=decision_payload)` against the *same* `thread_id` the run
+was invoked with (see `server/pipeline.py::resume_with_approval`) —
+`decision_payload` accepts either a terse string (`"approve"`) or a dict
+(`{"decision": ..., "approver": ..., "comment": ..., "override_recommendation": ...}`).
+A decision of `"revised"` with `override_recommendation` set rewrites
+`final_review.final_recommendation` before the graph reaches `END`.
+
 ## Checkpointing
 
-Compiled with `InMemorySaver` for now — sufficient for Phase 1's scope
-(one bounded, in-process revision loop). A real `SqliteSaver` swap is a
-Phase 2 concern, once human-in-the-loop interrupt/resume across separate API
-calls actually needs crash-safe persistence.
+Compiled with `InMemorySaver` — a parked run (waiting at `human_approval`)
+only survives within the same server process. A real `SqliteSaver` swap
+would be needed for a parked run to survive a server restart; not yet a
+real requirement since MySQL (not the graph checkpointer) is the durable
+copy of record for a decided approval.
 
 ## Verified
 
-- **Structural test** (`scripts/test_graph_topology.py`, all 9 agents
+- **Structural test** (`scripts/test_graph_topology.py`, all 10 agents
   mocked): confirms correct fan-out order, the revision loop re-runs exactly
-  the 4 assessment agents with `revision_feedback` set on pass 2,
+  the 4 assessment agents with `revision_feedback` set on pass 2 (and
+  `adversarial_critic` re-fires "for free" via its own AND-join),
   `figure_table` runs exactly once (never re-triggered by the loop),
   `revision_count` bounds correctly, `final_review` receives
   `figure_table_summary`. All assertions pass.
+- **Human-approval interrupt/resume test** (`scripts/test_human_approval.py`,
+  all agents mocked): 4 scenarios — approve as-drafted, reject outright,
+  human overrides the recommendation, terse bare-string resume (`"approve"`)
+  — confirming the graph genuinely parks at `__interrupt__` with the drafted
+  recommendation, and each resume path produces the correct final state.
 - **Real end-to-end run against local Ollama** (no mocks, ~20.6 minutes,
   synthetic short paper): parallel fan-out ran correctly; first reflection
   pass found 2 flags (`needs_revision=True`) and triggered the loop; all 4
@@ -126,11 +161,13 @@ calls actually needs crash-safe persistence.
   a coherent, accurately-grounded recommendation
   (`borderline`/`medium confidence`, correctly citing the test paper's actual
   gaps — no ablations, no compute details).
+- **Live, through the dashboard**: uploaded real PDFs and watched the graph
+  stream via `server/pipeline.py`, including a genuine revision pass, park at
+  `human_approval`/`awaiting_approval` with the real interrupt payload, and
+  resume correctly via `POST /api/approval/{run_id}` with the decision
+  landing in MySQL (`human_approvals`, `reviewed_papers.status=completed`).
 
 ## Not yet done
 
-Not wired into `server/pipeline.py` / the live dashboard yet — the SSE
-pipeline still shows the old placeholder "not yet implemented" cards for
-methodology/citation/evidence/reflection/final_review instead of real
-graph-driven events. No DB persistence and no human-in-the-loop interrupt
-(both Phase 2).
+A parked run only survives within the same server process (in-memory
+checkpointer) — see Checkpointing above.
