@@ -40,8 +40,9 @@ reducer function.
 
 ## Nodes (`nodes.py`)
 
-`ReviewGraphNodes` constructs all 9 agents **once** (not per node-call), and
-each method is a thin wrapper: read the relevant keys out of state, call the
+`ReviewGraphNodes` constructs all 10 agents **once** (not per node-call,
+including the Adversarial Critic — see `AGENTS_ARCHITECTURE.md`), and each
+method is a thin wrapper: read the relevant keys out of state, call the
 agent's `.run()`, return a partial state update.
 
 Two nodes exist purely for orchestration, not review logic:

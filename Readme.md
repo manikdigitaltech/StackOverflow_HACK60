@@ -12,46 +12,65 @@ Please create new branches with your name
 
 ## Prerequisites
 
-- **Python 3.11+**
+- **Python 3.10+**
 - **[Ollama](https://ollama.com)** installed and running locally, with at least
-  one text model pulled:
+  one text model pulled. Check `LLM__PROVIDER` in your `.env` and pull the
+  matching tag from `core/llm/llm_provider.py`'s `_OLLAMA_MODEL_MAP` (e.g.
+  `qwen2.5-7b` → `qwen2.5:7b-instruct-q8_0`):
   ```bash
-  ollama pull qwen2.5:7b
+  ollama pull qwen2.5:7b-instruct-q8_0
   ```
-  (Optional, for figure/table vision analysis — off by default:
-  `ollama pull qwen2.5vl:7b`)
-- **MySQL** — only needed for the human-in-the-loop / review-persistence layer
-  (not required to run the live pipeline demo below). No `docker-compose.yml`
-  is checked in; stand one up yourself if you're working on that layer.
+  Optional, for figure/table vision analysis (`VISION__ENABLED=true`):
+  `ollama pull qwen2.5vl:7b`
+- **GPU strongly recommended, not required.** If a CUDA GPU is available,
+  make sure `torch` is installed with a build matching your driver's CUDA
+  version (`torch.cuda.is_available()` should return `True`) and set
+  `EMBEDDINGS__DEVICE=cuda` in `.env` — otherwise every embedding call
+  (RAG indexing, the novelty scorer) silently runs on CPU even with a GPU
+  present, since nothing auto-detects this.
+- **MySQL**, for the human-in-the-loop / review-persistence layer. Real and
+  running matters here — reviews are actually written to it now, not just
+  schema-ready. No `docker-compose.yml` is checked in; the settings default
+  to `localhost:3307` / db `paper_reviewer` / user `reviewer_app` (see
+  `env.example`) — point those at a real instance, or stand one up yourself
+  (`mysqld --datadir=... --port=3307 ...`, then run the Alembic migration in
+  `core/db/migrations/`). The live dashboard's System Health panel
+  (`GET /api/health`) tells you honestly whether it's reachable.
 
 ## Setup
 
 ```bash
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp env.example .env   # adjust DB/LLM/vision settings as needed
+cp env.example .env   # adjust DB/LLM/vision/embeddings settings as needed
 ```
 
 ## Running the live pipeline UI
 
 The primary way to see the system working end to end: a FastAPI server that
-streams every real pipeline stage live (parse → figure/table vision →
-RAG indexing → literature retrieval → agents) to a browser dashboard over
-Server-Sent Events.
+streams every real pipeline stage live (parse → vision → RAG indexing →
+all 10 review agents → final review) to a browser dashboard over
+Server-Sent Events, and persists every run to MySQL as it goes.
 
 ```bash
 python -m uvicorn server.main:app --reload --port 8000
 ```
 
-Open `http://localhost:8000/`, upload a PDF, and watch it run. Stages that
-don't exist yet in the codebase are shown honestly as "not yet implemented,"
-never faked.
+Open `http://localhost:8000/`, upload a PDF, and watch it run. The only
+thing still shown honestly as "not yet implemented" is the graph actually
+pausing mid-run for human approval (it runs to completion, then a human
+reviews/decides on the finished result — see `docs/CONTEXT.md` §7 item 2).
+Past runs are browsable in the dashboard's History tab; system dependency
+health (Ollama, MySQL, Docling, literature index, checkpoint DB) is a live
+panel, not a hardcoded "Healthy."
 
 ## Running the orchestration graph directly
 
-The LangGraph review pipeline (`core/graph/`) wires the 9 review agents into
-one bounded run (parallel fan-out, a self-reflection step with one bounded
-revision pass, final synthesis). To exercise it directly against a real
-parsed paper and local Ollama:
+The LangGraph review pipeline (`core/graph/`) wires 10 review agents into
+one bounded run (parallel fan-out, an Adversarial Critic attacking
+Methodology/Citation/Evidence's verdicts, a self-reflection step with one
+bounded revision pass, final synthesis). To exercise it directly against a
+real parsed paper and local Ollama:
 
 ```python
 from core.graph.build_graph import build_review_graph
@@ -88,35 +107,68 @@ python -m scripts.test_parsing "./data/raw_papers/your_paper.pdf"
 python -m scripts.test_novelty_agent
 ```
 
+## Running the graded evaluation (PeerRead accuracy/F1/κ)
+
+The problem statement's graded core: runs the full graph against every
+paper in PeerRead ICLR-2017's held-out `test` split (never touched by any
+corpus/index — see `docs/PEERREAD_CORPUS_MODULE.md`), maps the recommendation
+to accept/reject, and scores against real ground truth.
+
+```bash
+python -m scripts.run_peerread_evaluation --output output_results/peerread_eval.jsonl
+```
+
+Real PeerRead data needs to be present first (`data/peerread_raw/iclr_2017/`
+— see `docs/PEERREAD_CORPUS_MODULE.md` for how it was fetched). Current
+numbers are in `docs/CONTEXT.md` §7 item 3 — re-run and don't trust numbers
+in docs as permanently current. Optional, slower, complementary quality
+signals (does an agent's *reasoning* hold up, not just its final call) are
+in `docs/QUALITY_GATES.md`.
+
 ## Project structure
 
 ```
 core/
-  parsing/       Docling PDF parsing, section segmentation, figure/table extraction
+  parsing/       Docling PDF parsing, section segmentation, figure/table extraction,
+                 prompt-injection guardrails on every extracted text field
   rag/           Two-index retrieval: Index A (per-paper hybrid dense+BM25),
-                 Index B (persistent literature corpus)
-  agents/        The 9 review agents (paper understanding, literature RAG,
+                 Index B (persistent literature corpus, real ICLR-2017 data)
+  agents/        10 review agents (paper understanding, literature RAG,
                  novelty, methodology, citation, evidence/reproducibility,
-                 figure/table, reflection, final review) + a separate
-                 embedding-only novelty scorer (core/agents/novelty/)
+                 figure/table, adversarial critic, reflection, final review)
+                 + a separate embedding-only novelty scorer (core/agents/novelty/)
   graph/         LangGraph orchestration wiring the agents into one review run
   llm/           Ollama client factory, prompt manager, structured-output helper
-  db/            SQLAlchemy models + Alembic migration for review persistence
+  db/            SQLAlchemy models + repositories + Alembic migration — real,
+                 live MySQL persistence, not just schema
+  eval/          PeerRead accuracy/F1/κ harness + optional DeepEval/RAGAS quality gates
+  utils/         Prompt-injection guardrails, grounding checks, token budgeting
   config/        Settings (env-overridable) and prompt templates
-server/          FastAPI backend for the live pipeline dashboard (SSE)
-scripts/         Manual verification scripts and CLI entry points
+server/          FastAPI backend for the live pipeline dashboard (SSE), persistence,
+                 approval/history/health endpoints
+scripts/         Manual verification scripts, CLI entry points, the eval harness
 tests/unit/      Automated pytest suite
-data/            Sample PDFs, literature/novelty corpora (seed data only —
-                 real PeerRead data needs to be cloned/built separately)
+data/            Sample PDFs + real ICLR-2017 PeerRead data (gitignored, see
+                 docs/PEERREAD_CORPUS_MODULE.md to regenerate)
 ```
 
 ## Current status
 
-- **Working, verified**: PDF parsing, both RAG indexes, all 9 review agents
-  (individually and via the orchestration graph), the live SSE dashboard.
-- **Not yet built**: human-in-the-loop approval + review persistence, the
-  PeerRead evaluation harness (accuracy/F1/Cohen's κ against ground truth —
-  the graded core of the problem statement), a real PeerRead-built literature
-  corpus (only seed data exists today).
+See `docs/CONTEXT.md` for the full, actively-maintained picture (it
+explicitly warns not to trust any snapshot as permanently current — check
+git state yourself) — condensed here:
+
+- **Working, verified, real data**: PDF parsing (with guardrails), both RAG
+  indexes (the literature index holds real ICLR-2017 papers, not seed data),
+  all 10 review agents individually and via the orchestration graph, the
+  live SSE dashboard (every agent + Final Review + Human Approval + History
+  + System Health), MySQL persistence, and the graded PeerRead evaluation
+  harness (real accuracy/F1/κ numbers, not just built-but-unrun).
+- **Partial**: human-in-the-loop — a decision genuinely persists, but the
+  graph doesn't yet pause mid-run to wait for one (runs to completion first).
+- **Known open problem, being actively worked**: the eval harness's Cohen's
+  κ is currently low (~0.10, "slight" agreement) — see `docs/CONTEXT.md` §7
+  item 3 for the honest read and what's already been tried.
+- **Not built**: a true LangGraph interrupt/resume for human approval.
 - Figure/table vision analysis is code-complete but off by default (no local
   vision model pulled).

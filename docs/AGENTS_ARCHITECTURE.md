@@ -1,6 +1,6 @@
 # The Review Agents — Architecture & Individual Agents
 
-*Covers `core/agents/*.py` (the 8 LLM-based agents + Literature RAG) and the
+*Covers `core/agents/*.py` (the 9 LLM-based agents + Literature RAG) and the
 shared infrastructure they're built on. Novelty is covered separately
 (`NOVELTY_AGENT.md`) since it has two distinct implementations; the
 orchestration wiring them together is covered in `LANGGRAPH_ORCHESTRATION.md`.*
@@ -125,15 +125,60 @@ reference "Figure 4" when only 2 figures were extracted? A cheap, reliable
 way to catch a parsing gap before ever blaming the model for missing content
 it was never given. Skips the LLM call entirely if no figures/tables exist.
 
+### `AdversarialCriticAgent`
+
+Added after the PeerRead evaluation harness's first real numbers showed a
+specific, concrete failure mode worth targeting: agents that settle on a
+comfortable middling rating ("fair", "adequate") rather than actually
+committing to a strong verdict, which upstream biases the whole review
+toward over-predicting accept (see `docs/CONTEXT.md` §7 item 3's "honest
+read" for the numbers that motivated this).
+
+Attacks **Methodology, Citation, and Evidence & Reproducibility only** —
+deliberately not Novelty, which already has its own grounding discipline
+and a second, independent embedding-based signal (see `NOVELTY_AGENT.md`).
+For each of the three target assessments, finds the single weakest verdict
+and constructs a genuine counter-argument against it — `attacked_verdict`
+must quote or closely paraphrase an exact verdict from the assessment being
+attacked (never a vague summary of the whole thing), and the counter-argument
+must explain specifically why the cited evidence doesn't support it as
+strongly as claimed. Outputs `AdversarialCritique` (a list of `attacks`,
+each with `source_agent`/`attacked_verdict`/`counter_argument`/`severity`,
+plus a `weakest_agent` verdict).
+
+**Wired as an input to `ReflectionAgent`, not as its own veto**: the
+critique doesn't unilaterally force a flag — Reflection is instructed to
+cross-check each attack against the paper content and the original
+assessment itself before deciding whether to raise a matching flag,
+treating a "major" attack that holds up as strong evidence for a "major"
+flag, but never rubber-stamping the critic's severity label blindly.
+
+**Graph wiring** (see `LANGGRAPH_ORCHESTRATION.md`): runs on its own 3-source
+AND-join (`methodology`/`citation`/`evidence_reproducibility`, NOT
+`novelty`) in parallel with `reflection`'s own join. Deliberately has **no**
+direct edge from `prepare_revision` — it re-fires automatically on a
+revision pass because its 3 sources get re-triggered anyway, and adding a
+second explicit edge would reintroduce the exact OR-trigger-not-AND-join bug
+documented in `LANGGRAPH_ORCHESTRATION.md`. Confirmed empirically (not just
+by reasoning) in `scripts/test_graph_topology.py`: fires exactly twice
+across one revision pass, never receives `novelty_assessment`.
+
+**Verified live**: real attacks against a real paper's Methodology/Citation/
+Evidence output (e.g. attacking a "fair" soundness rating for lacking
+baseline comparisons/ablations), Reflection's flags traced directly back to
+the critic's attacks in the same run, `final_review` still completed a full
+report despite the added node and revision pass.
+
 ### `ReflectionAgent`
 
 Reads all four assessments (Novelty, Methodology, Citation, Evidence &
-Reproducibility) plus the original paper, and flags anything speculative,
-unsupported, or inconsistent. Does **not** re-run retrieval or re-parse the
-paper — purely reviews what the other four already concluded. Outputs
-`ReflectionNotes` (flags with severity, `needs_revision` — true only if at
-least one flag is `"major"` — and overall confidence), which drives the
-orchestration graph's bounded revision loop.
+Reproducibility) **plus the Adversarial Critique** plus the original paper,
+and flags anything speculative, unsupported, inconsistent, or an attack that
+holds up under its own verification. Does **not** re-run retrieval or
+re-parse the paper — purely reviews what the other agents already concluded.
+Outputs `ReflectionNotes` (flags with severity, `needs_revision` — true only
+if at least one flag is `"major"` — and overall confidence), which drives
+the orchestration graph's bounded revision loop.
 
 ### `FinalReviewAgent`
 
@@ -147,9 +192,11 @@ outputs, keeping its own prompt smaller despite covering the most sources.
 
 ## Verified
 
-All 9 agent classes (8 here + the LLM-based Novelty Agent) import and
+All 10 agent classes (9 here + the LLM-based Novelty Agent) import and
 construct successfully together. `PaperUnderstandingAgent` and
 `FinalReviewAgent` verified individually against real Ollama /
-mocked-but-realistic fixture data; all 9 verified together in a real,
-non-mocked end-to-end run through the LangGraph orchestration this session
-(~20 minutes wall-clock, correct revision-loop behavior, coherent final output).
+mocked-but-realistic fixture data; all 10 verified together in real,
+non-mocked end-to-end runs through the LangGraph orchestration and the live
+SSE dashboard (correct revision-loop behavior — including the Adversarial
+Critic re-firing on the second pass — coherent final output, real MySQL
+persistence of every assessment).

@@ -1,6 +1,6 @@
 # Multi-Agent System Design — The Big Picture
 
-*A system-level view of how parsing, RAG, and 9 specialized agents combine
+*A system-level view of how parsing, RAG, and specialized agents combine
 into one reviewer, mapped against the problem statement's "Multi-Agent
 Controller" requirement. Complements `AGENTS_ARCHITECTURE.md` (what each
 agent does) and `LANGGRAPH_ORCHESTRATION.md` (the graph mechanics) — this
@@ -11,8 +11,9 @@ doc is about the design philosophy connecting them.*
 The problem statement's architecture diagram calls for a "Multi-Agent
 Controller" dispatching to specialized agents (Novelty, Methodology,
 Evidence, Citation) rather than one LLM call asked to produce an entire
-review at once. This system commits to that fully — 9 agents, each with a
-narrow, well-defined job:
+review at once. This system commits to that fully — 10 agents (9 original +
+an Adversarial Critic added later, see below), each with a narrow,
+well-defined job:
 
 | Agent | Sole responsibility |
 |---|---|
@@ -23,7 +24,8 @@ narrow, well-defined job:
 | Citation | Judge reference-list coverage |
 | Evidence & Reproducibility | Judge whether claims are backed by tables, and whether the work is reproducible |
 | Figure & Table | Summarize visual/tabular content |
-| Reflection | Audit the above four for unsupported or inconsistent claims |
+| Adversarial Critic | Actively attack Methodology/Citation/Evidence's verdicts, forcing them to survive real pushback instead of settling on a comfortable middling rating |
+| Reflection | Audit Methodology/Citation/Evidence/Novelty *and* the Adversarial Critique for unsupported, inconsistent, or over-conceded claims |
 | Final Review | Synthesize everything into the required output shape |
 
 **Why this over one big prompt:** each agent's prompt can enforce a narrow,
@@ -85,14 +87,16 @@ something needs catching; reflection is the backstop for when they don't.
 
 | Layer | State |
 |---|---|
-| All 9 agents individually | Built, tested, verified against real Ollama |
-| Wired into one bounded LangGraph run | **Done this session** (Phase 1) — parallel fan-out, grounded revision loop, verified end-to-end for real |
-| Wired into the live dashboard | **Not yet** — UI still shows placeholder cards for 5 of the 9 agents |
-| Human-in-the-loop approval before final output | **Not yet** (Phase 2) |
-| Writing a completed review to the database | **Not yet** (Phase 2) — nothing persists a review today |
-| Evaluated against PeerRead's labeled test split | **Not yet** (Phase 3 — the graded core of the problem statement) |
+| All 10 agents individually | Built, tested, verified against real Ollama |
+| Wired into one bounded LangGraph run | **Done** — parallel fan-out, grounded revision loop (now including the Adversarial Critic's own AND-join, re-fires automatically on a revision pass), verified end-to-end for real |
+| Wired into the live dashboard | **Done** — every agent has a real card with real structured rendering; no placeholder cards remain except `human_approval`'s persistence step (see below) |
+| Review persistence to MySQL | **Done** — `reviewed_papers`/`review_assessments`/`reflection_flags` are written for real as each run streams, best-effort (a DB hiccup never breaks a live review); `GET /api/history` and `GET /api/history/{trace_id}` surface past runs |
+| Human-in-the-loop approval | **Partially done** — the dashboard's Human Approval view shows the real final review, and `POST /api/approval/{run_id}` genuinely persists a decision to `human_approvals`. What's *not* built: the graph doesn't actually pause/interrupt mid-run to wait for that decision (a deliberate scope call — see `docs/CONTEXT.md` §7) |
+| Evaluated against PeerRead's labeled test split | **Done** — `core/eval/peerread_harness.py` + `scripts/run_peerread_evaluation.py`; see `docs/CONTEXT.md` §7 item 3 for the latest real accuracy/F1/κ numbers |
+| Agent-output quality gates (DeepEval/RAGAS) | **Done, optional** — see `docs/QUALITY_GATES.md`; a second, complementary signal to the PeerRead accuracy numbers, checking *how* an agent reasoned, not just whether its final call matched ground truth |
 
 **The multi-agent controller itself — the thing the problem statement
-actually asks for — is real and working.** What's left is connecting it to
-persistence, human review, the live UI, and the evaluation harness that
-measures how well it actually performs.
+actually asks for — is real, working, persisted, and measured against the
+graded eval set.** What's left is the true interrupt/resume half of
+human-in-the-loop (Phase 2) and any further iteration the eval numbers
+motivate (see `docs/CONTEXT.md`'s honest read on the current κ score).
