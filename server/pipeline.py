@@ -4,12 +4,14 @@ and yields a live event per stage -- this is what server/main.py streams to
 the browser over Server-Sent Events.
 
 Deliberately honest about what exists: parse / figure-vision / RAG-chunk /
-paper-RAG-index / the full 9-agent LangGraph review (paper understanding
-through final review) / MySQL persistence of the review + human decisions
-are all real code paths, executed for real. The one thing NOT built is a
-true LangGraph interrupt/resume -- the graph still runs start-to-finish in
-one pass; a human reviews and records a decision on the completed result
-afterward, rather than the graph pausing mid-run to wait for one.
+paper-RAG-index / the full 10-agent LangGraph review (paper understanding
+through the human-approval interrupt) / MySQL persistence of the review +
+human decisions are all real code paths, executed for real. The graph
+genuinely pauses mid-run at the human-approval gate (LangGraph's
+interrupt()) and stays parked on the checkpointer, keyed by run_id, until
+resume_with_approval() resumes it with a real decision -- the SSE stream
+ends with the run awaiting a human, which is the honest state, not a faked
+"complete."
 """
 from __future__ import annotations
 
@@ -228,22 +230,24 @@ def run_pipeline(run_id: str, pdf_path: str, uploaded_filename: Optional[str] = 
         except NoveltyEvaluationAgentError as exc:
             yield _event("novelty_agent", "error", message=str(exc))
 
-    # --- Stages: the full 9-agent LangGraph review (paper understanding
-    # through final review), replacing the old placeholder cards with real
-    # graph-driven events. Each judgment agent's output + reflection's flags
-    # are persisted to MySQL as they complete (see _db_* helpers above). ---
+    # --- Stages: the full 10-agent LangGraph review (paper understanding
+    # through the human-approval interrupt), replacing the old placeholder
+    # cards with real graph-driven events. Each judgment agent's output +
+    # reflection's flags are persisted to MySQL as they complete (see _db_*
+    # helpers above). The stream ends with the run genuinely parked at the
+    # approval interrupt -- see _run_review_graph's __interrupt__ handling
+    # and resume_with_approval() below, which resumes it for real. ---
     yield from _run_review_graph(run_id, parsed_paper, reviewed_paper_id)
 
-    # --- Human approval: the graph doesn't pause for this (no true
-    # interrupt/resume -- see module docstring), but a real decision made via
-    # POST /api/approval/{run_id} now genuinely persists to human_approvals. ---
-    yield _event(
-        "human_approval", "not_implemented",
-        label="Human-in-the-Loop Approval",
-        message="The graph doesn't pause here yet, but Approve/Request Changes/Reject in the UI now really persist a decision.",
-    )
-
-    yield _event("pipeline", "complete", total_elapsed_s=round(time.time() - t_start, 2))
+    # The graph either ran all the way to a resumed completion (shouldn't
+    # happen on this first pass -- resume only ever happens via a later,
+    # separate resume_with_approval() call) or, on every normal first pass,
+    # is genuinely parked at the human_approval interrupt. Reporting
+    # "complete" in the latter case would be a lie -- nothing is decided
+    # yet -- so check the checkpointer's own state rather than assuming.
+    snapshot = _get_review_graph().get_state({"configurable": {"thread_id": run_id}})
+    final_status = "awaiting_approval" if snapshot.next else "complete"
+    yield _event("pipeline", final_status, total_elapsed_s=round(time.time() - t_start, 2))
 
 
 _review_graph_singleton = None
@@ -316,6 +320,22 @@ def _run_review_graph(run_id: str, parsed_paper: ParsedPaper, reviewed_paper_id:
             stream_mode="updates",
         ):
             for node_name, partial_state in update.items():
+                if node_name == "__interrupt__":
+                    # The human-approval gate fired for real (langgraph.types.
+                    # interrupt() in nodes.human_approval): the run is now
+                    # parked on the graph's checkpointer, keyed by this run_id,
+                    # until resume_with_approval() resumes it with a decision.
+                    # Surface the drafted review so the UI can show what needs
+                    # sign-off -- this is the last event this generator yields
+                    # (graph.stream() has nothing more to give until resumed).
+                    interrupts = partial_state if isinstance(partial_state, (tuple, list)) else (partial_state,)
+                    request = _serialize(getattr(interrupts[0], "value", interrupts[0])) if interrupts else {}
+                    yield _event(
+                        "human_approval", "awaiting_approval",
+                        message="Review drafted -- awaiting human approval before the recommendation is issued.",
+                        request=request,
+                    )
+                    continue
                 if node_name == "prepare_revision":
                     revision_pass = partial_state.get("revision_count", revision_pass + 1)
                     yield _event(
@@ -410,34 +430,82 @@ def get_run(run_id: str) -> Optional[Dict[str, Any]]:
     return _RUNS.get(run_id)
 
 
-def record_human_approval(run_id: str, decision: str, feedback: Optional[str], decided_by: Optional[str]) -> Dict[str, Any]:
-    """Persists a real reviewer decision for a completed run -- called by
-    POST /api/approval/{run_id}. Not a LangGraph interrupt/resume (see
-    module docstring): the review already ran to completion; this records
-    what a human decided about it afterward.
+_GRAPH_DECISION_TO_DB_DECISION = {
+    "approved": "approve",
+    "rejected": "reject",
+    "revised": "revise",
+}
+
+
+def resume_with_approval(run_id: str, decision_payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Resume a review run genuinely parked at the human-approval interrupt
+    (core.graph.nodes.human_approval's langgraph.types.interrupt() call) with
+    a real decision, then persist that decision to MySQL. Called by
+    POST /api/approval/{run_id}.
+
+    Two things happen here, not one: (1) core.graph.build_graph's compiled
+    graph resumes for real via Command(resume=...) -- this is a genuine
+    LangGraph interrupt/resume, not an after-the-fact record; (2) once the
+    graph confirms the decision, it's also written to human_approvals via
+    ApprovalRepository, so it survives a server restart and shows up in
+    GET /api/history -- the graph's own in-memory checkpointer does not
+    survive a restart, so DB persistence is the durable copy of record.
     """
+    from langgraph.types import Command
+
     from core.db.models import ApprovalDecision
     from core.db.repositories.approval_repository import ApprovalRepository
 
+    if run_id not in _RUNS:
+        return {"ok": False, "error": f"Unknown run_id {run_id!r} -- upload and stream a review first."}
+
+    graph = _get_review_graph()
+    config = {"configurable": {"thread_id": run_id}}
+
+    # Guard: only resume a run that is actually parked at the approval
+    # interrupt -- resuming a finished/never-started thread would silently
+    # re-invoke the graph from a wrong state.
+    snapshot = graph.get_state(config)
+    if not snapshot.next:
+        return {"ok": False, "error": f"Run {run_id!r} is not awaiting approval "
+                                       f"(already decided, or the review never reached the approval gate)."}
+
+    result = graph.invoke(Command(resume=decision_payload), config=config)
+
+    approval = result.get("human_approval")
+    final_review = result.get("final_review")
+    if approval is None:
+        return {"ok": False, "error": "Graph resumed but produced no human_approval -- this is a bug, not a user error."}
+
+    db_decision_str = _GRAPH_DECISION_TO_DB_DECISION.get(approval.decision)
     try:
-        decision_enum = ApprovalDecision(decision)
+        db_decision = ApprovalDecision(db_decision_str) if db_decision_str else None
     except ValueError:
-        return {"ok": False, "error": f"Invalid decision {decision!r}; must be one of: "
-                                       f"{[d.value for d in ApprovalDecision]}"}
+        db_decision = None
 
-    with get_session() as session:
-        review_repo = ReviewRepository(session)
-        reviewed_paper = review_repo.get_by_trace_id(run_id)
-        if reviewed_paper is None:
-            return {"ok": False, "error": f"No reviewed_paper found for run_id={run_id!r} "
-                                           f"(review may have failed before persistence, or DB was unreachable)"}
+    if db_decision is not None:
+        try:
+            with get_session() as session:
+                review_repo = ReviewRepository(session)
+                reviewed_paper = review_repo.get_by_trace_id(run_id)
+                if reviewed_paper is not None:
+                    comment = approval.comment or ""
+                    if approval.override_recommendation:
+                        comment = f"{comment} [override_recommendation={approval.override_recommendation}]".strip()
+                    ApprovalRepository(session).save_decision(
+                        reviewed_paper.id, db_decision, feedback=comment or None, decided_by=approval.approver,
+                    )
+                    review_repo.update_status(reviewed_paper.id, ReviewedPaperStatus.completed)
+        except Exception:
+            logger.warning("Could not persist human_approval for run %s -- graph resume itself still succeeded.",
+                            run_id, exc_info=True)
 
-        ApprovalRepository(session).save_decision(
-            reviewed_paper.id, decision_enum, feedback=feedback, decided_by=decided_by
-        )
-        review_repo.update_status(reviewed_paper.id, ReviewedPaperStatus.completed)
-
-    return {"ok": True, "run_id": run_id, "decision": decision}
+    return {
+        "ok": True,
+        "run_id": run_id,
+        "human_approval": _serialize(approval),
+        "final_review": _serialize(final_review) if final_review else None,
+    }
 
 
 def check_system_health() -> Dict[str, Any]:

@@ -68,7 +68,7 @@ def _install_vertexai_import_shim() -> None:
 
 _install_vertexai_import_shim()
 
-from openai import OpenAI  # noqa: E402 -- must follow the shim
+from openai import AsyncOpenAI  # noqa: E402 -- must follow the shim; async since evaluate_retrieval is async
 
 from ragas.embeddings import HuggingFaceEmbeddings  # noqa: E402
 from ragas.llms import llm_factory  # noqa: E402
@@ -93,7 +93,7 @@ class RagasRunner:
 
     def __init__(self):
         model_tag = get_llm().model  # resolves the real pulled Ollama tag, not our internal alias
-        client = OpenAI(base_url=f"{settings.llm.base_url}/v1", api_key="ollama-local-no-key-needed")
+        client = AsyncOpenAI(base_url=f"{settings.llm.base_url}/v1", api_key="ollama-local-no-key-needed")
         self._llm = llm_factory(model_tag, client=client)
         self._embeddings = HuggingFaceEmbeddings(
             model="BAAI/bge-small-en-v1.5", device=settings.embeddings.device

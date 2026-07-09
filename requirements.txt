@@ -55,3 +55,8 @@ python-dotenv
 
 # --- Testing (kanishka RAG merge) ---
 pytest
+
+# --- Agent/RAG quality gates (core/eval/deepeval_quality.py, ragas_quality.py) ---
+deepeval>=4.0
+ragas>=0.4
+datasets>=5.0

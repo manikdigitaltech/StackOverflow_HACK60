@@ -10,6 +10,11 @@ a review run doesn't pay LLM-client construction cost at every node.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from typing import Any
+
+from langgraph.types import interrupt
+
 from core.agents.adversarial_critic_agent import AdversarialCriticAgent
 from core.agents.citation_agent import CitationAgent
 from core.agents.evidence_reproducibility_agent import EvidenceReproducibilityAgent
@@ -22,8 +27,41 @@ from core.agents.paper_understanding_agent import PaperUnderstandingAgent
 from core.agents.reflection_agent import ReflectionAgent
 from core.config.settings import settings
 from core.graph.state import ReviewGraphState
+from core.schemas.agent_output_schemas import HumanApproval
 
 _MAX_FLAGS_IN_FEEDBACK = 8  # bound the feedback block; a wall of flags is worse than a focused one
+
+# Accept common synonyms for a decision so the resume payload can be terse
+# ("approve", "accept") or explicit ("approved") without the node caring.
+_DECISION_SYNONYMS = {
+    "approve": "approved", "approved": "approved", "accept": "approved", "ok": "approved",
+    "reject": "rejected", "rejected": "rejected", "deny": "rejected",
+    "revise": "revised", "revised": "revised", "override": "revised", "edit": "revised",
+}
+
+
+def _normalize_decision(value: Any) -> str:
+    return _DECISION_SYNONYMS.get(str(value).strip().lower(), "approved")
+
+
+def _coerce_approval(payload: Any) -> HumanApproval:
+    """Turn whatever a human/client passed to Command(resume=...) into a
+    validated HumanApproval. Tolerates a bare string ("approved"), a dict, or
+    an already-built HumanApproval, and stamps decided_at if the caller didn't."""
+    if isinstance(payload, HumanApproval):
+        approval = payload
+    elif isinstance(payload, str):
+        approval = HumanApproval(decision=_normalize_decision(payload))
+    elif isinstance(payload, dict):
+        data = {k: v for k, v in payload.items() if k in HumanApproval.model_fields}
+        data["decision"] = _normalize_decision(payload.get("decision", "approved"))
+        approval = HumanApproval(**data)
+    else:
+        approval = HumanApproval(decision="approved")
+
+    if approval.decided_at is None:
+        approval = approval.model_copy(update={"decided_at": datetime.now(timezone.utc).isoformat()})
+    return approval
 
 
 class ReviewGraphNodes:
@@ -163,3 +201,44 @@ class ReviewGraphNodes:
             "reflection_notes": state["reflection_notes"],
         })
         return {"final_review": result}
+
+    # --- Stage 5: human-in-the-loop approval (mandatory gate) ---
+
+    def human_approval(self, state: ReviewGraphState) -> dict:
+        """Pause the run and require a human to sign off before the final
+        recommendation is issued (problem statement section 11: "Final decision
+        requires human-in-the-loop approval").
+
+        interrupt() halts execution here and surfaces the drafted review to the
+        caller; the run stays parked (on the checkpointer, keyed by thread_id)
+        until it's resumed with `Command(resume=<decision>)`, at which point
+        this node re-runs from the top and interrupt() returns that decision.
+        Everything above the interrupt() call is a pure read of already-computed
+        state, so re-running on resume is harmless.
+
+        A "revised" decision carrying an override_recommendation replaces the
+        model's final_recommendation with the human's -- the human, not the
+        model, has the last word on the decision.
+        """
+        draft = state["final_review"]
+
+        decision_payload = interrupt({
+            "type": "approval_request",
+            "message": "Human approval required before issuing the final recommendation.",
+            "draft_recommendation": draft.final_recommendation,
+            "draft_confidence": draft.confidence,
+            "paper_summary": draft.paper_summary,
+            "strengths": draft.strengths,
+            "weaknesses": draft.weaknesses,
+            "questions_for_authors": draft.questions_for_authors,
+        })
+
+        approval = _coerce_approval(decision_payload)
+        updates: dict = {"human_approval": approval}
+
+        if approval.decision == "revised" and approval.override_recommendation:
+            updates["final_review"] = draft.model_copy(
+                update={"final_recommendation": approval.override_recommendation}
+            )
+
+        return updates

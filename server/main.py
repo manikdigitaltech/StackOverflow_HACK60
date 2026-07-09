@@ -6,11 +6,13 @@ state instead of its original hardcoded demo data.
 
 core/db's MySQL tables (reviewed_papers, review_assessments, human_approvals,
 reflection_flags) ARE the real persistence layer now -- server/pipeline.py
-writes each judgment agent's output and reflection's flags as they complete,
-and POST /api/approval/{run_id} below records a real human decision. Run
-metadata for the RAG-query endpoint still lives in-memory in
-server/pipeline.py (that part is a demo/inspection convenience, not
-lifecycle data worth persisting).
+writes each judgment agent's output and reflection's flags as they complete.
+The review run genuinely pauses at a human-approval interrupt (LangGraph's
+interrupt(), see core/graph/nodes.py) before issuing a final recommendation;
+POST /api/approval/{run_id} below resumes that parked run for real via
+Command(resume=...) AND persists the decision to MySQL. Run metadata for the
+RAG-query endpoint still lives in-memory in server/pipeline.py (that part is
+a demo/inspection convenience, not lifecycle data worth persisting).
 
 Run with:  python -m uvicorn server.main:app --reload --port 8000
 Then open: http://localhost:8000/
@@ -20,7 +22,7 @@ from __future__ import annotations
 import json
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
@@ -28,7 +30,7 @@ from pydantic import BaseModel
 
 from core.db.repositories.review_repository import ReviewRepository
 from core.db.session import get_session
-from server.pipeline import check_system_health, query_paper_index, record_human_approval, run_pipeline
+from server.pipeline import check_system_health, query_paper_index, resume_with_approval, run_pipeline
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = REPO_ROOT / "data" / "uploads"
@@ -85,14 +87,22 @@ def query(run_id: str, q: str, k: int = 5):
 
 
 class ApprovalRequest(BaseModel):
-    decision: str  # "approve" | "revise" | "reject" -- see core.db.models.ApprovalDecision
-    feedback: Optional[str] = None
-    decided_by: Optional[str] = None
+    decision: str  # "approve"/"approved", "reject"/"rejected", "revise"/"revised" -- synonyms normalized graph-side
+    approver: Optional[str] = None
+    comment: Optional[str] = None
+    override_recommendation: Optional[
+        Literal["reject", "weak_reject", "borderline", "weak_accept", "accept"]
+    ] = None                           # only meaningful with a "revise"/"revised" decision
 
 
 @app.post("/api/approval/{run_id}")
 def approval(run_id: str, body: ApprovalRequest):
-    result = record_human_approval(run_id, body.decision, body.feedback, body.decided_by)
+    """Resumes the review run genuinely parked at the human-approval
+    interrupt (see core.graph.nodes.human_approval) with this decision, and
+    persists it to MySQL. A 404 here means the run never reached the
+    approval gate or was already decided -- see resume_with_approval's own
+    docstring for the exact guard."""
+    result = resume_with_approval(run_id, body.model_dump(exclude_none=True))
     if not result["ok"]:
         raise HTTPException(404, result["error"])
     return result

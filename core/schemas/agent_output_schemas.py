@@ -184,6 +184,9 @@ class FigureTableSummary(BaseModel):
     extraction_consistency_note: str = ""   # set deterministically by the agent, not by the LLM
 
 
+Recommendation = Literal["reject", "weak_reject", "borderline", "weak_accept", "accept"]
+
+
 class FinalReview(BaseModel):
     paper_summary: str
     strengths: List[str]
@@ -194,5 +197,24 @@ class FinalReview(BaseModel):
     reproducibility: str
     evidence_mapping: str
     missing_baselines: List[str] = []   # set deterministically from MethodologyAssessment, not re-derived by the LLM
-    final_recommendation: Literal["reject", "weak_reject", "borderline", "weak_accept", "accept"]
+    final_recommendation: Recommendation
     confidence: Literal["low", "medium", "high"]
+
+
+class HumanApproval(BaseModel):
+    """The human reviewer's sign-off on a drafted FinalReview -- the mandatory
+    human-in-the-loop gate (problem statement section 11: "Final decision
+    requires human-in-the-loop approval"). Recorded on the graph state after a
+    human resumes an interrupted review run with their decision.
+
+    - "approved": issue the recommendation as the model drafted it.
+    - "rejected": the human rejects the drafted review outright.
+    - "revised":  the human overrides the model's call; when paired with
+      override_recommendation, the FinalReview's final_recommendation is
+      replaced with the human's -- the human is the final authority on the call.
+    """
+    decision: Literal["approved", "rejected", "revised"]
+    approver: Optional[str] = None
+    comment: Optional[str] = None
+    override_recommendation: Optional[Recommendation] = None
+    decided_at: Optional[str] = None   # ISO-8601 UTC timestamp, stamped at decision time if not supplied

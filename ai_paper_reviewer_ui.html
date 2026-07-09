@@ -602,12 +602,66 @@
       border: 1px solid rgba(139, 92, 246, 0.3);
     }
 
+    /* ==========================================================
+       Live Activity -- commit-graph-style agent activity-trace timeline.
+       A single vertical rail runs down the left; every SSE event from
+       /api/stream/{run_id} is a node threaded onto that rail. Monospace,
+       dark-console aesthetic to match Claude Code's own transcript look.
+
+       Font: reuses the page's existing 'JetBrains Mono' (already loaded via
+       the Google Fonts <link> in <head> -- no new external request). Falls
+       back to system monospace stack if that link ever fails/is blocked, so
+       this component never depends on a *second* external resource of its
+       own and degrades gracefully under a strict CSP that already allows
+       what the rest of the page uses.
+
+       Theme: the rest of this page is dark-only (no prefers-color-scheme
+       anywhere else in the file) -- this block adds a light-mode palette
+       scoped ONLY to .activity-feed's own custom properties, so a user
+       whose OS is in light mode gets a readable timeline without touching
+       the dark chrome (topbar/pipeline/detail-panel) around it.
+       ========================================================== */
     .activity-feed {
-      background: #050609;
-      border: 1px solid var(--glass-border);
+      --tl-bg: #050609;
+      --tl-text-1: var(--text-1);
+      --tl-text-2: var(--text-2);
+      --tl-text-3: var(--text-3);
+      --tl-border: var(--glass-border);
+      --tl-rail: linear-gradient(180deg, var(--purple) 0%, rgba(76, 130, 251, 0.25) 100%);
+      --tl-green: var(--green);
+      --tl-blue: var(--blue-soft);
+      --tl-red: var(--red);
+      --tl-gray: var(--text-3);
+
+      background: var(--tl-bg);
+      border: 1px solid var(--tl-border);
       border-radius: var(--radius);
       padding: 18px 22px;
       min-height: 60vh;
+      /* Mirrors .left-pane / .detail-panel: sticky + internally-scrolling so
+         all three workspace columns share one consistent height instead of
+         an unbounded center column dragging the whole page past the two
+         pinned side panels. */
+      position: sticky;
+      top: 84px;
+      max-height: calc(100vh - 104px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    @media (prefers-color-scheme: light) {
+      .activity-feed {
+        --tl-bg: #f7f7fa;
+        --tl-text-1: #191b26;
+        --tl-text-2: #4d5271;
+        --tl-text-3: #7c8099;
+        --tl-border: rgba(20, 22, 40, 0.12);
+        --tl-rail: linear-gradient(180deg, #7c3aed 0%, rgba(37, 99, 235, 0.3) 100%);
+        --tl-green: #0f9d63;
+        --tl-blue: #2563eb;
+        --tl-red: #dc2626;
+        --tl-gray: #8a8fa8;
+      }
     }
 
     .activity-feed h4 {
@@ -615,56 +669,282 @@
       font-size: 11.5px;
       text-transform: uppercase;
       letter-spacing: 0.8px;
-      color: var(--text-2);
+      color: var(--tl-text-2);
       margin-bottom: 14px;
       font-weight: 600;
-    }
-
-    /* ---- Live Activity / Run Console (streaming terminal-style log) ---- */
-    .cx-console {
-      background: var(--paper-dark);
-      border-radius: 6px;
-      padding: 12px 14px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      line-height: 1.6;
-      min-height: 320px;
-      max-height: 460px;
-      overflow-y: auto;
-    }
-
-    .cx-log {
-      display: flex;
-      align-items: baseline;
-      gap: 8px;
-    }
-
-    .cx-log .t {
-      color: var(--text-3);
-      opacity: 0.7;
       flex-shrink: 0;
     }
 
-    .cx-log .msg {
-      color: var(--text-1);
-      opacity: 0.85;
+    #activityList {
+      position: relative;
+      font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 4px;
+      scrollbar-width: thin;
     }
 
-    .cx-log .msg--ok {
-      color: #7FBF9B;
-      opacity: 1;
+    .tl-empty-hint {
+      color: var(--tl-text-3);
+      font-size: 12px;
+      padding: 4px 0 4px 24px;
     }
 
-    .cx-log .msg--kill {
-      color: #E0705C;
-      font-weight: 500;
-      opacity: 1;
+    /* The continuous rail line -- positioned relative to the scrolling list
+       itself (not the fixed-height card) so it always spans exactly the
+       full height of however many nodes currently exist. */
+    .tl-rail-line {
+      position: absolute;
+      left: 4px;
+      top: 8px;
+      bottom: 8px;
+      width: 1.5px;
+      background: var(--tl-rail);
+      z-index: 0;
     }
 
-    .cx-log .msg--accent {
-      color: #F7F5EF;
+    .tl-node {
+      position: relative;
+      z-index: 1;
+      padding: 7px 0 7px 24px;
+    }
+
+    .tl-node.tl-enter {
+      animation: tlEnter .32s ease;
+    }
+
+    @keyframes tlEnter {
+      from {
+        opacity: 0;
+        transform: translateX(-6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .tl-dot {
+      position: absolute;
+      left: 0;
+      top: 14px;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--tl-bg);
+      border: 2px solid var(--tl-gray);
+      transition: border-color .2s ease, background .2s ease;
+    }
+
+    .tl-node.tl-s-done .tl-dot {
+      border-color: var(--tl-green);
+      background: var(--tl-green);
+      box-shadow: 0 0 8px var(--tl-green);
+    }
+
+    .tl-node.tl-s-running .tl-dot {
+      border-color: var(--tl-blue);
+      background: var(--tl-blue);
+      box-shadow: 0 0 8px var(--tl-blue);
+      animation: tlPulse 1.3s infinite;
+    }
+
+    .tl-node.tl-s-error .tl-dot {
+      border-color: var(--tl-red);
+      background: var(--tl-red);
+      box-shadow: 0 0 8px var(--tl-red);
+    }
+
+    .tl-node.tl-s-gray .tl-dot {
+      border-color: var(--tl-gray);
+      background: var(--tl-bg);
+    }
+
+    @keyframes tlPulse {
+      50% {
+        opacity: .35;
+      }
+    }
+
+    .tl-row {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      font-size: 12px;
+    }
+
+    .tl-prompt {
+      color: var(--purple-soft);
       font-weight: 600;
-      opacity: 1;
+      flex-shrink: 0;
+    }
+
+    .tl-label {
+      font-weight: 600;
+      color: var(--tl-text-1);
+    }
+
+    .tl-status-text {
+      color: var(--tl-text-3);
+    }
+
+    .tl-node.tl-s-done .tl-status-text {
+      color: var(--tl-green);
+    }
+
+    .tl-node.tl-s-running .tl-status-text {
+      color: var(--tl-blue);
+    }
+
+    .tl-node.tl-s-error .tl-status-text {
+      color: var(--tl-red);
+    }
+
+    .tl-time {
+      margin-left: auto;
+      color: var(--tl-text-3);
+      font-size: 10.5px;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .tl-msg {
+      font-size: 11.5px;
+      color: var(--tl-text-2);
+      line-height: 1.6;
+      margin-top: 3px;
+    }
+
+    .tl-msg:empty {
+      display: none;
+    }
+
+    .tl-msg::before {
+      content: '  ';
+      white-space: pre;
+    }
+
+    .tl-cursor {
+      display: inline-block;
+      width: 6px;
+      height: 12px;
+      background: var(--tl-blue);
+      margin-left: 1px;
+      vertical-align: text-bottom;
+      animation: tlBlink .9s step-end infinite;
+    }
+
+    @keyframes tlBlink {
+
+      0%,
+      80%,
+      100% {
+        opacity: .2;
+      }
+
+      40% {
+        opacity: 1;
+      }
+    }
+
+    /* Inline human-approval buttons -- appear directly in the human_approval
+       timeline node once its status is "awaiting_approval" (the real signal
+       server/pipeline.py emits over SSE at the human-approval interrupt). */
+    .tl-approval {
+      margin-top: 9px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tl-approval[hidden] {
+      display: none;
+    }
+
+    .tl-approval-request {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--tl-text-2);
+      line-height: 1.5;
+    }
+
+    .tl-approval-request b {
+      color: var(--tl-text-1);
+    }
+
+    .tl-approval button {
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid var(--tl-border);
+      background: none;
+      color: var(--tl-text-1);
+      transition: transform .12s ease, background .15s ease;
+    }
+
+    .tl-approval button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    .tl-approval button:disabled {
+      opacity: .5;
+      cursor: default;
+      transform: none;
+    }
+
+    .tl-approval .tl-approve {
+      background: rgba(52, 211, 153, 0.12);
+      color: var(--tl-green);
+      border-color: rgba(52, 211, 153, 0.3);
+    }
+
+    .tl-approval .tl-revise {
+      background: rgba(251, 191, 63, 0.1);
+      color: var(--orange);
+      border-color: rgba(251, 191, 63, 0.3);
+    }
+
+    .tl-approval .tl-reject {
+      background: rgba(251, 113, 133, 0.1);
+      color: var(--tl-red);
+      border-color: rgba(251, 113, 133, 0.3);
+    }
+
+    .tl-approval-note {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--tl-text-2);
+    }
+
+    /* "Jump to latest" pill -- appears once the user scrolls up so they can
+       get back to the live edge without losing their place involuntarily. */
+    .tl-jump {
+      position: sticky;
+      bottom: 4px;
+      left: 0;
+      z-index: 2;
+      display: none;
+      margin: 8px auto 0;
+      width: fit-content;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #fff;
+      background: var(--grad);
+      border: none;
+      border-radius: 20px;
+      padding: 6px 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
+    }
+
+    .tl-jump.visible {
+      display: block;
     }
 
     /* ---- Agent pipeline (signature element -- compact in the narrow left column) ---- */
@@ -925,15 +1205,6 @@
       box-shadow: 0 0 6px var(--red);
     }
 
-    .status-planned {
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--text-3);
-    }
-
-    .status-planned .sd {
-      background: var(--text-3);
-    }
-
     .status-error {
       background: rgba(251, 113, 133, 0.12);
       color: var(--red);
@@ -950,16 +1221,6 @@
 
     .status-skipped .sd {
       background: var(--text-3);
-    }
-
-    .agent-card.not-implemented {
-      opacity: 0.55;
-      border-style: dashed;
-    }
-
-    .agent-card.not-implemented:hover {
-      transform: none;
-      background: var(--glass);
     }
 
     .query-box-row {
@@ -1656,10 +1917,15 @@
             </div>
           </div>
 
-          <!-- CENTER: Live Activity / Run Console -->
+          <!-- CENTER: Live Activity -- commit-graph-style agent activity-trace
+               timeline, fed live by the SSE stream (see startStream() below).
+               Dev-only preview without a backend: open the browser console
+               and run `mockEvents()` -- see the comment above that function
+               for details; it never runs on its own during normal use. -->
           <div class="activity-feed">
             <h4>Live Activity</h4>
-            <div class="cx-console" id="activityList"></div>
+            <div id="activityList"><div class="tl-rail-line"></div><div class="tl-empty-hint" id="tlEmptyHint">Waiting for the pipeline to start…</div></div>
+            <button class="tl-jump" id="tlJumpBtn" onclick="jumpToLatestActivity()">↓ Jump to latest</button>
           </div>
 
           <!-- RIGHT: docked detail panel (auto-follows the running stage) -->
@@ -1855,7 +2121,7 @@
       error: '<span class="status-badge status-error"><span class="sd"></span>Error</span>',
       skipped: '<span class="status-badge status-skipped"><span class="sd"></span>Skipped</span>',
       not_available: '<span class="status-badge status-skipped"><span class="sd"></span>Not Available</span>',
-      not_implemented: '<span class="status-badge status-planned"><span class="sd"></span>Not Yet Implemented</span>',
+      awaiting_approval: '<span class="status-badge status-running"><span class="sd"></span>Awaiting Approval</span>',
       waiting: '<span class="status-badge status-waiting"><span class="sd"></span>Waiting</span>',
     };
 
@@ -1873,7 +2139,7 @@
       if (latest.status === 'error') return 'Error: ' + (latest.message || 'unknown error');
       if (latest.status === 'skipped') return latest.message || 'Skipped';
       if (latest.status === 'not_available') return latest.message || 'Not available';
-      if (latest.status === 'not_implemented') return 'Not built yet';
+      if (latest.status === 'awaiting_approval') return 'Awaiting your decision -- see the Human Approval tab.';
       if (latest.status === 'done') {
         if (card.key === 'parse') return `Segmented into ${latest.section_names.length} section(s), ${latest.num_tables} table(s), ${latest.num_figures} figure(s).`;
         if (card.key === 'vision') return `Described ${latest.num_analyzed} figure(s) with the local vision model.`;
@@ -1897,11 +2163,10 @@
       const html = CARDS.map(card => {
         const status = statusOf(card);
         const badge = STATUS_BADGE[status] || STATUS_BADGE.waiting;
-        const activeClass = status === 'running' ? ' active-run' : '';
-        const plannedClass = status === 'not_implemented' ? ' not-implemented' : '';
+        const activeClass = (status === 'running' || status === 'awaiting_approval') ? ' active-run' : '';
         const pinnedClass = selectedCardKey === card.key ? ' active-run' : '';
         return `
-        <div class="agent-card${activeClass}${plannedClass}${pinnedClass}" onclick="selectCard('${card.key}')">
+        <div class="agent-card${activeClass}${pinnedClass}" onclick="selectCard('${card.key}')">
           <div class="agent-avatar">${card.icon}</div>
           <div class="agent-body">
             <div class="agent-top-row">
@@ -1915,7 +2180,7 @@
     }
 
     function updateProgressBar() {
-      const terminal = ['done', 'error', 'skipped', 'not_available', 'not_implemented'];
+      const terminal = ['done', 'error', 'skipped', 'not_available'];
       const total = CARDS.length;
       const finished = CARDS.filter(c => terminal.includes(statusOf(c))).length;
       const pct = Math.round((finished / total) * 100);
@@ -1925,56 +2190,280 @@
       document.getElementById('tpbCurrent').textContent = running ? ('● ' + running.label + ' running') : (pct === 100 ? '● Pipeline finished' : '● Idle');
     }
 
-    // ---- Live Activity / Run Console: a capped-length streaming terminal log.
-    // Only the last 16 lines are ever rendered (lines[-16:]) -- older lines
-    // fall off the top. Each line is one flex row: a dim HH:MM:SS timestamp +
-    // a message span carrying one of 4 tones (see .cx-log CSS).
-    const consoleLines = [];   // { time, text, tone }
+    // ============================================================
+    // Live Activity -- commit-graph-style agent activity-trace timeline.
+    // Consumes the exact same SSE stream/liveEvents state the pipeline cards
+    // above do (see startStream()); this block only owns *rendering* one
+    // node per stage-event onto the vertical rail in #activityList.
+    // ============================================================
+
+    // The real /api/stream/{run_id} contract (server/pipeline.py's `_event`)
+    // emits status values running/done/error/not_available/awaiting_approval
+    // (human_approval's genuine interrupt signal -- see core/graph/nodes.py)
+    // /complete (the synthetic 'pipeline' event emitted once, at the very
+    // end). awaiting_approval renders in the same blue/pulsing group as
+    // running since it's a live state that needs a human action, not a
+    // finished one; skipped/not_available read as a "nothing ran here" gray
+    // dot; 'complete' is treated as a terminal "done"-colored node too.
+    const TL_TERMINAL_STATUSES = new Set(['done', 'error', 'skipped', 'not_available', 'complete']);
+    const TL_STATUS_GROUP = {
+      done: 'done', complete: 'done',
+      running: 'running', awaiting_approval: 'running',
+      error: 'error',
+      skipped: 'gray', not_available: 'gray',
+    };
+    const timelineNodes = {};   // stage -> { el, status } -- the currently-open node per stage, if any
+    const timelineTypers = {};  // stage -> setInterval id for that node's in-flight typewriter
+    let activityAutoScroll = true; // flips false once the user scrolls up, so we never yank their position
+    let approvalRecordedFor = null; // run_id this session has already recorded a human-approval decision for
 
     // Stage sublabels so the 2-stageKey 'rag' card's chunk/build events read
     // as distinct lines instead of two identical-looking "RAG Indexing" rows.
     const STAGE_SUBLABEL = { chunk: 'Chunking', paper_rag_build: 'Embedding + Indexing' };
 
-    function toneForEvent(event) {
-      if (event.status === 'error') return 'kill';
-      if (event.status === 'done') {
-        // A major flag/attack surviving to a finished Reflection or
-        // Adversarial Critic pass is an emphasis moment, not routine "done".
-        const r = event.result;
-        const hasMajor = r && ((r.flags || []).some(f => f.severity === 'major')
-          || (r.attacks || []).some(a => a.severity === 'major'));
-        if (hasMajor || event.stage === 'final_report') return 'accent';
-        return 'ok';
+    // The timeline is the chronological TIMING log (what happened, when, how
+    // long it took) -- the docked panel is the sole place for the rich
+    // derived description of a *completed* stage. Duplicating that
+    // description here too (via summaryFor) would put the exact same
+    // sentence on screen twice at once whenever a followed stage finished;
+    // this keeps each pane's job distinct. Running/error/skipped states
+    // still show the backend's own short status message here since that IS
+    // the log entry, not a redundant derived summary.
+    function activityDetailFor(event, card) {
+      if (event.stage === 'pipeline') {
+        return event.status === 'awaiting_approval'
+          ? 'Review drafted -- awaiting human approval before the recommendation is issued.'
+          : `All stages finished in ${event.total_elapsed_s}s.`;
       }
-      // A revision pass kicking off is the other emphasis moment -- it's
-      // the one signal that the bounded self-critique loop actually fired.
-      if (event.status === 'running' && (event.message || '').includes('Revision pass')) return 'accent';
-      return 'neutral';
+      if (event.status === 'done') return '';
+      return card ? summaryFor(card) : (event.message || '');
     }
 
-    function pushConsoleLine(event, card) {
-      const label = card
-        ? (card.stageKeys.length > 1 && STAGE_SUBLABEL[event.stage] ? `${card.label} — ${STAGE_SUBLABEL[event.stage]}` : card.label)
-        : event.stage;
-      const text = `${label}: ${event.message || event.status}`;
-      const time = new Date(event.ts * 1000).toLocaleTimeString('en-GB', { hour12: false });
-      consoleLines.push({ time, text, tone: toneForEvent(event) });
-      renderConsole();
+    function stageLabelFor(event, card) {
+      if (event.stage === 'pipeline') return 'Pipeline';
+      // Cards with 2 stageKeys (currently only 'rag': chunk + paper_rag_build)
+      // share one label on the pipeline card/docked panel, but that makes
+      // their running/done x2 log entries look like duplicate repetition in
+      // the timeline -- disambiguate just here, where it actually matters.
+      if (card) {
+        return card.stageKeys.length > 1 && STAGE_SUBLABEL[event.stage]
+          ? `${card.label} — ${STAGE_SUBLABEL[event.stage]}`
+          : card.label;
+      }
+      return event.label || event.stage;
     }
 
-    function renderConsole() {
-      const el = document.getElementById('activityList');
-      const visible = consoleLines.slice(-16);
-      el.innerHTML = visible.map(l => `
-        <div class="cx-log">
-          <span class="t">${escapeHtml(l.time)}</span>
-          <span class="msg${l.tone === 'neutral' ? '' : ' msg--' + (l.tone === 'ok' ? 'ok' : l.tone === 'kill' ? 'kill' : 'accent')}">${escapeHtml(l.text)}</span>
-        </div>`).join('');
-      el.scrollTop = el.scrollHeight;
-    }
-
+    // ---- Node create-or-update ----
+    // A node is UPDATED IN PLACE while its previous event was still
+    // "running" (non-terminal) -- so the ordinary running -> done
+    // progression for one stage is one line that fills in, not two. Once a
+    // node reaches a terminal status, the NEXT event for that same stage
+    // always starts a NEW node instead of overwriting it.
+    //
+    // This matters because core/graph's bounded revision loop can
+    // legitimately re-run novelty_llm_agent/methodology_agent/
+    // citation_agent/evidence_agent/reflection_agent a second time with
+    // genuinely different output after Reflection flags a major issue.
+    // Collapsing pass 1 and pass 2 onto the same line would silently erase
+    // pass 1's visible history (its message, timing, any error it had) the
+    // moment pass 2 starts running -- for a review tool, losing that trail
+    // is worse than a few extra lines on the runs that actually revise.
+    // "Terminal, then append" gives the full multi-pass history for free
+    // without re-implementing pass-tracking: pipeline.py already always
+    // re-announces a stage as "running" before re-running it, so "was this
+    // node already finished when a new event for its stage showed up" is a
+    // reliable signal for "this is a new pass, not a continuation." Since
+    // awaiting_approval is deliberately NOT terminal (see above), the
+    // human_approval node stays the SAME element across its awaiting ->
+    // decided transition, which is what lets handleApprovalAction() below
+    // update that exact node in place once a human actually decides.
     function appendActivity(event, card) {
-      pushConsoleLine(event, card);
+      const listEl = document.getElementById('activityList');
+      const hint = document.getElementById('tlEmptyHint');
+      if (hint) hint.remove();
+
+      const label = stageLabelFor(event, card);
+      const group = TL_STATUS_GROUP[event.status] || 'gray';
+      const entry = timelineNodes[event.stage];
+      const isNew = !entry || TL_TERMINAL_STATUSES.has(entry.status);
+
+      let el;
+      if (isNew) {
+        el = document.createElement('div');
+        el.dataset.stage = event.stage;
+        el.innerHTML = `
+        <div class="tl-dot"></div>
+        <div class="tl-row">
+          <span class="tl-prompt">›</span>
+          <span class="tl-label"></span>
+          <span class="tl-status-text"></span>
+          <span class="tl-time"></span>
+        </div>
+        <div class="tl-msg"></div>
+        <div class="tl-approval" hidden></div>`;
+        listEl.appendChild(el);
+      } else {
+        el = entry.el;
+      }
+      timelineNodes[event.stage] = { el, status: event.status };
+
+      el.className = 'tl-node tl-s-' + group + (isNew ? ' tl-enter' : '');
+      el.querySelector('.tl-label').textContent = label;
+      el.querySelector('.tl-status-text').textContent = event.status.replace(/_/g, ' ');
+
+      // Always anchor on wall-clock time; elapsed duration (only present on
+      // 'done') is a secondary annotation, not a replacement for it --
+      // showing a clock time on some rows and a bare duration on others in
+      // the same slot read as two unrelated kinds of information.
+      const clockStr = new Date(event.ts * 1000).toLocaleTimeString();
+      el.querySelector('.tl-time').textContent = event.elapsed_s ? `${clockStr} (${event.elapsed_s}s)` : clockStr;
+
+      setTimelineMessage(event.stage, el.querySelector('.tl-msg'), activityDetailFor(event, card));
+      renderApprovalControls(el.querySelector('.tl-approval'), event);
+
+      scrollActivityIfPinned();
+    }
+
+    // Type the detail line out character-by-character with a blinking
+    // cursor rather than dumping it in instantly -- a client-side reveal of
+    // an already-complete message (not literal token streaming: the SSE
+    // event arrives whole), but it reads as "being generated right now."
+    // Cancels any still-running typer for this stage first, so a fast
+    // running -> done update-in-place can't leave two intervals racing to
+    // write into the same element.
+    function setTimelineMessage(stage, msgEl, text) {
+      if (timelineTypers[stage]) {
+        clearInterval(timelineTypers[stage]);
+        delete timelineTypers[stage];
+      }
+      msgEl.textContent = '';
+      if (!text) return;
+
+      const cursor = document.createElement('span');
+      cursor.className = 'tl-cursor';
+      msgEl.appendChild(cursor);
+      let i = 0;
+      timelineTypers[stage] = setInterval(() => {
+        if (i < text.length) {
+          cursor.insertAdjacentText('beforebegin', text[i]);
+          i++;
+          scrollActivityIfPinned();
+        } else {
+          clearInterval(timelineTypers[stage]);
+          delete timelineTypers[stage];
+          cursor.remove();
+        }
+      }, 12);
+    }
+
+    // ---- Auto-scroll: follow new/updating entries unless the user has
+    // scrolled up to read history -- never yank their position away. ----
+    function scrollActivityIfPinned() {
+      if (!activityAutoScroll) return;
+      const listEl = document.getElementById('activityList');
+      requestAnimationFrame(() => { listEl.scrollTop = listEl.scrollHeight; });
+    }
+
+    function jumpToLatestActivity() {
+      activityAutoScroll = true;
+      document.getElementById('tlJumpBtn').classList.remove('visible');
+      scrollActivityIfPinned();
+    }
+
+    (function initActivityScrollTracking() {
+      const listEl = document.getElementById('activityList');
+      listEl.addEventListener('scroll', () => {
+        const atBottom = listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 32;
+        activityAutoScroll = atBottom;
+        document.getElementById('tlJumpBtn').classList.toggle('visible', !atBottom);
+      });
+    })();
+
+    function resetActivityTimeline() {
+      Object.values(timelineTypers).forEach(id => clearInterval(id));
+      Object.keys(timelineTypers).forEach(k => delete timelineTypers[k]);
+      Object.keys(timelineNodes).forEach(k => delete timelineNodes[k]);
+      document.getElementById('activityList').innerHTML =
+        '<div class="tl-rail-line"></div><div class="tl-empty-hint" id="tlEmptyHint">Waiting for the pipeline to start…</div>';
+      activityAutoScroll = true;
+      approvalRecordedFor = null;
+      document.getElementById('tlJumpBtn').classList.remove('visible');
+    }
+
+    // ---- Inline human-approval controls ----
+    // Rendered directly inside the human_approval timeline node once its
+    // status hits "awaiting_approval" -- the real signal server/pipeline.py
+    // emits (via langgraph.types.interrupt(), see core/graph/nodes.py) the
+    // instant the review is drafted and parked awaiting a human decision.
+    // The interrupt payload (draft_recommendation/draft_confidence/
+    // paper_summary/strengths/weaknesses/questions_for_authors) rides along
+    // on `event.request` -- shown here so a reviewer doesn't have to jump to
+    // the Human Approval tab just to see what they're deciding on. Delegates
+    // to handleApprovalAction() further down, the exact same function the
+    // Human Approval view's own buttons call -- one real POST
+    // /api/approval/{run_id} code path, not a second implementation.
+    function renderApprovalControls(container, event) {
+      if (!(event.stage === 'human_approval' && event.status === 'awaiting_approval')) {
+        container.hidden = true;
+        return;
+      }
+      container.hidden = false;
+      if (approvalRecordedFor === runId) {
+        container.innerHTML = `<div class="tl-approval-note">Decision recorded — see the Human Approval tab.</div>`;
+        return;
+      }
+      if (!container.innerHTML) {
+        const req = event.request || {};
+        const preview = req.paper_summary
+          ? `<div class="tl-approval-request"><b>Draft: ${escapeHtml(titleCase(req.draft_recommendation || ''))}</b>
+              (confidence: ${escapeHtml(req.draft_confidence || 'n/a')}) — ${escapeHtml((req.paper_summary || '').slice(0, 160))}${(req.paper_summary || '').length > 160 ? '…' : ''}</div>`
+          : '';
+        container.innerHTML = `${preview}
+        <div class="tl-approval">
+          <button class="tl-approve" onclick="handleApprovalAction('approve')">Approve</button>
+          <button class="tl-revise" onclick="handleApprovalAction('changes')">Request Changes</button>
+          <button class="tl-reject" onclick="handleApprovalAction('reject')">Reject</button>
+        </div>`;
+      }
+    }
+
+    // ---- Dev-only preview mode ----
+    // Replays a sample SSE event sequence through the exact same
+    // appendActivity() path real events use, on a timer -- so this
+    // component can be eyeballed/tested without a running backend or an
+    // uploaded PDF. Not called anywhere in this file and not wired to any
+    // button, so it can never accidentally fire during normal use; trigger
+    // it manually from the browser devtools console:
+    //     mockEvents()
+    function mockEvents() {
+      resetActivityTimeline();
+      runId = runId || 'mock-run';
+      const seq = [
+        { stage: 'parse', status: 'running', message: 'Parsing PDF with Docling (layout + OCR-if-needed)...' },
+        { stage: 'parse', status: 'done', elapsed_s: 2.14, title: 'Mock Paper', section_names: ['Abstract', 'Intro', 'Method'], num_tables: 2, num_figures: 3, num_references: 41 },
+        { stage: 'vision', status: 'running', message: 'Cropping + describing up to 6 figure(s)...' },
+        { stage: 'vision', status: 'done', elapsed_s: 4.02, num_analyzed: 3, figures: [] },
+        { stage: 'novelty_agent', status: 'not_available', message: 'No novelty corpus indexed yet.' },
+        { stage: 'methodology_agent', status: 'running', message: 'Running...' },
+        { stage: 'methodology_agent', status: 'error', message: 'LLM request timed out after 60s.' },
+        { stage: 'reflection_agent', status: 'running', message: 'Revision pass 1: re-running assessment agents with feedback...' },
+        { stage: 'methodology_agent', status: 'running', message: 'Revision pass 1...' },
+        { stage: 'methodology_agent', status: 'done', elapsed_s: 3.5 },
+        { stage: 'reflection_agent', status: 'done' },
+        {
+          stage: 'human_approval', status: 'awaiting_approval', label: 'Human-in-the-Loop Approval',
+          request: { draft_recommendation: 'weak_accept', draft_confidence: 'medium', paper_summary: 'A mock paper summary long enough to demonstrate truncation in the inline preview shown on the timeline node itself.' },
+        },
+        { stage: 'pipeline', status: 'awaiting_approval', total_elapsed_s: 18.4 },
+      ];
+      seq.forEach((partial, i) => {
+        setTimeout(() => {
+          const event = { ts: Date.now() / 1000, ...partial };
+          const card = CARDS.find(c => c.stageKeys.includes(event.stage));
+          liveEvents[event.stage] = event;
+          appendActivity(event, card);
+        }, i * 900);
+      });
     }
 
     async function handleFileSelected(evt) {
@@ -1994,8 +2483,7 @@
         document.getElementById('pdfRunId').textContent = 'run: ' + run_id;
         document.getElementById('pdfTitle').textContent = 'Parsing…';
         Object.keys(liveEvents).forEach(k => delete liveEvents[k]);
-        consoleLines.length = 0;
-        document.getElementById('activityList').innerHTML = '';
+        resetActivityTimeline();
         selectedCardKey = null;
         lastUpdatedCardKey = null;
         document.getElementById('sp-follow-toggle').style.display = 'none';
@@ -2016,6 +2504,7 @@
       currentEventSource.onmessage = (msg) => {
         const event = JSON.parse(msg.data);
         if (event.stage === 'pipeline') {
+          appendActivity(event, null);   // final SSE event -- render it, then close
           currentEventSource.close();
           return;
         }
@@ -2102,7 +2591,6 @@
 
     function renderPanelBody(card, status) {
       if (status === 'waiting') return `<div class="sp-block"><p>This stage hasn't run yet -- upload a paper to see live output here.</p></div>`;
-      if (status === 'not_implemented') return `<div class="sp-block"><h5>Status</h5><p>This part of the architecture (${card.label}) is not built yet. It's tracked in docs/CONTEXT.md as upcoming work -- nothing here is faked.</p></div>`;
 
       if (card.key === 'parse') {
         const e = liveEvents['parse'];
@@ -2266,6 +2754,16 @@
         <div class="sp-block"><h5>Weaknesses</h5><ul>${r.weaknesses.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul></div>
         See the "Final Review" tab in the top nav for the full formatted report.`;
       }
+      if (card.key === 'human_approval') {
+        const e = liveEvents['human_approval'];
+        if (!e || e.status !== 'awaiting_approval') return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting for the review to be drafted...'}</p></div>`;
+        const req = e.request || {};
+        return `
+        <div class="sp-block"><h5>Drafted recommendation: ${titleCase(req.draft_recommendation || '')} (confidence: ${titleCase(req.draft_confidence || '')})</h5>
+        <p>The review run is genuinely parked here (LangGraph interrupt()) until a human decides -- nothing downstream happens until then.</p></div>
+        <div class="sp-block"><h5>Summary</h5><p>${escapeHtml(req.paper_summary || '')}</p></div>
+        See the "Human Approval" tab in the top nav to approve, request changes, or reject.`;
+      }
       return `<div class="sp-block"><p>${escapeHtml(JSON.stringify(liveEvents[card.stageKeys[0]] || {}, null, 2))}</p></div>`;
     }
 
@@ -2424,21 +2922,44 @@
         <h3>Recommendation</h3><p>${titleCase(r.final_recommendation)} (confidence: ${titleCase(r.confidence)})</p>`;
     }
 
-    // UI action -> core.db.models.ApprovalDecision value.
+    // UI action -> the decision vocabulary core.graph.nodes._normalize_decision
+    // and server/main.py's ApprovalRequest actually accept.
     const APPROVAL_DECISION = { approve: 'approve', changes: 'revise', reject: 'reject' };
 
+    // Real persistence: POSTs to server/main.py's /api/approval/{run_id},
+    // which resumes the graph genuinely parked at the human_approval
+    // interrupt (Command(resume=...), see core/graph/nodes.py) AND writes a
+    // real row to MySQL human_approvals (core/db/repositories/
+    // approval_repository.py) -- not a stub. Called both from this Human
+    // Approval view's own buttons and from the Live Activity timeline's
+    // inline buttons on the human_approval node -- one function, one real
+    // code path. Field names below (approver/comment/override_recommendation)
+    // must match ApprovalRequest exactly -- Pydantic silently drops unknown
+    // extra fields rather than erroring, so a mismatch here would look like
+    // it worked while quietly discarding the approver/comment every time.
     async function handleApprovalAction(action) {
       if (!runId) { alert('No active run -- upload a paper first.'); return; }
       const decision = APPROVAL_DECISION[action];
-      const feedback = document.getElementById('approvalComment').value.trim() || null;
+      const comment = document.getElementById('approvalComment').value.trim() || null;
       try {
         const resp = await fetch(`/api/approval/${runId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ decision, feedback, decided_by: 'dashboard-user' }),
+          body: JSON.stringify({ decision, approver: 'dashboard-user', comment }),
         });
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
+
+        approvalRecordedFor = runId;
+        const humanNode = timelineNodes['human_approval'];
+        if (humanNode) {
+          const decided = (data.human_approval && data.human_approval.decision) || decision;
+          humanNode.status = 'done';
+          humanNode.el.className = 'tl-node tl-s-done';
+          humanNode.el.querySelector('.tl-status-text').textContent = decided;
+          renderApprovalControls(humanNode.el.querySelector('.tl-approval'), { stage: 'human_approval', status: 'awaiting_approval' });
+        }
+        document.querySelectorAll('.approval-actions button').forEach(b => b.disabled = true);
         alert(`Recorded: ${titleCase(decision)}. This decision is now saved in human_approvals for run ${runId}.`);
       } catch (err) {
         alert(`Could not record this decision: ${err.message}\n\n(The review itself is unaffected -- this only means the approval record wasn't saved. Check that MySQL is reachable.)`);
