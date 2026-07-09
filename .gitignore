@@ -5,11 +5,14 @@ docker-compose.yml
 data/peerread_raw/
 data/figure_crops/
 data/uploads/
+output_results/
 
 # Virtual environments
 .venv/
 venv/
 env/
+
+finetune/
 
 # Python
 __pycache__/

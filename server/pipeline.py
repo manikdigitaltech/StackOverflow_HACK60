@@ -4,12 +4,11 @@ and yields a live event per stage -- this is what server/main.py streams to
 the browser over Server-Sent Events.
 
 Deliberately honest about what exists: parse / figure-vision / RAG-chunk /
-paper-RAG-index are real code paths, executed for real, on the real uploaded
-PDF. Everything past that (the actual Novelty/Methodology/Evidence/Citation
-agents, the reflection/verifier loop, human-approval persistence, the final
-report) doesn't exist in the codebase yet -- those stages are emitted with
-status="not_implemented" rather than faked, so the UI never shows an agent
-"completing" work no code actually did.
+paper-RAG-index / the full 9-agent LangGraph review (paper understanding
+through final review) are real code paths, executed for real, on the real
+uploaded PDF. Only human-in-the-loop approval and MySQL persistence remain
+unbuilt (Phase 2) -- that one stage is emitted with status="not_implemented"
+rather than faked, so the UI never shows work no code actually did.
 """
 from __future__ import annotations
 
@@ -22,23 +21,28 @@ from core.agents.novelty import NoveltyEvaluationAgent, NoveltyEvaluationAgentEr
 from core.agents.novelty.adapter import parsed_paper_to_novelty_input
 from core.agents.novelty.config import DEFAULT_PATHS as NOVELTY_PATHS
 from core.config.settings import settings
+from core.graph.build_graph import build_review_graph
 from core.rag.adapters import parsed_paper_to_chunker_input
 from core.rag.chunking.section_chunker import chunk_paper
 from core.rag.embeddings.embedding_provider import BgeSmallEmbeddingProvider
 from core.rag.indexes.paper_index import PaperIndex
 from core.schemas.agent_output_schemas import ParsedPaper
 
-# Stages that exist only as architecture placeholders right now -- listed
-# once here so the "not yet implemented" events stay in sync with reality
-# instead of silently drifting as agents get built.
-NOT_YET_IMPLEMENTED_STAGES = [
-    {"stage": "methodology_agent", "label": "Methodology Agent"},
-    {"stage": "citation_agent", "label": "Citation Agent"},
-    {"stage": "evidence_agent", "label": "Evidence & Reproducibility Agent"},
-    {"stage": "reflection_agent", "label": "Self-Reflection / Verifier Agent"},
-    {"stage": "human_approval", "label": "Human-in-the-Loop Approval"},
-    {"stage": "final_report", "label": "Final Review Report"},
-]
+# LangGraph node name -> the `stage` key the UI's CARDS array expects (see
+# ai_paper_reviewer_ui.html). "prepare_revision" and "ready_for_synthesis"
+# are orchestration-only nodes with no user-facing output and are handled
+# separately in _run_review_graph, not through this table.
+_GRAPH_NODE_TO_STAGE = {
+    "paper_understanding": "paper_understanding_agent",
+    "literature_rag": "literature_rag",
+    "figure_table": "figure_table_agent",
+    "novelty": "novelty_llm_agent",
+    "methodology": "methodology_agent",
+    "citation": "citation_agent",
+    "evidence_reproducibility": "evidence_agent",
+    "reflection": "reflection_agent",
+    "final_review": "final_report",
+}
 
 # run_id -> {"parsed_paper": ParsedPaper, "paper_index": PaperIndex, "pdf_path": str}
 # In-memory only -- this is a demo/inspection layer, not the review-lifecycle
@@ -132,16 +136,6 @@ def run_pipeline(run_id: str, pdf_path: str) -> Iterator[Dict[str, Any]]:
     else:
         yield _event("paper_rag_build", "skipped", message="No chunks produced -- nothing to index.")
 
-    # --- Stage: literature RAG (Index B) -- honest status, no corpus built yet ---
-    literature_index_path = Path(__file__).resolve().parent.parent / "data" / "literature_index" / "index.faiss"
-    if literature_index_path.exists():
-        yield _event("literature_rag", "done", message="Literature index found on disk (not queried in this demo pass).")
-    else:
-        yield _event(
-            "literature_rag", "not_available",
-            message="No literature corpus built yet -- run core/rag/ingestion/build_corpus.py against a PeerRead clone first.",
-        )
-
     # --- Stage: Novelty Agent (real, local, no LLM -- arko_novelty_agent merge) ---
     novelty_corpus_dir = Path(__file__).resolve().parent.parent / NOVELTY_PATHS.corpus_dir
     if not novelty_corpus_dir.is_dir() or not any(novelty_corpus_dir.glob("*.json")):
@@ -160,11 +154,113 @@ def run_pipeline(run_id: str, pdf_path: str) -> Iterator[Dict[str, Any]]:
         except NoveltyEvaluationAgentError as exc:
             yield _event("novelty_agent", "error", message=str(exc))
 
-    # --- Stages that genuinely don't exist in the codebase yet ---
-    for stage in NOT_YET_IMPLEMENTED_STAGES:
-        yield _event(stage["stage"], "not_implemented", label=stage["label"])
+    # --- Stages: the full 9-agent LangGraph review (paper understanding
+    # through final review), replacing the old placeholder cards with real
+    # graph-driven events. ---
+    yield from _run_review_graph(run_id, parsed_paper)
+
+    # --- Stage that genuinely doesn't exist in the codebase yet (Phase 2) ---
+    yield _event("human_approval", "not_implemented", label="Human-in-the-Loop Approval")
 
     yield _event("pipeline", "complete", total_elapsed_s=round(time.time() - t_start, 2))
+
+
+_review_graph_singleton = None
+
+
+def _get_review_graph():
+    """Builds the compiled LangGraph review graph once per process and reuses
+    it -- constructing it rebuilds all 9 agents (and their LLM client), so
+    doing that per uploaded paper would pay that cost on every review."""
+    global _review_graph_singleton
+    if _review_graph_singleton is None:
+        _review_graph_singleton = build_review_graph()
+    return _review_graph_singleton
+
+
+def _serialize(value: Any) -> Any:
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    return value
+
+
+def _summary_message(node_name: str, value: Any) -> str:
+    """One-line human-readable summary per node type, for the activity feed
+    and card subtitle -- everything else about the output still reaches the
+    UI verbatim via the event's `result` field."""
+    if node_name == "paper_understanding":
+        return f"{len(value.stated_contributions)} contribution(s), {len(value.key_terms)} key term(s) identified."
+    if node_name == "literature_rag":
+        return f"Retrieved {len(value.matches)} literature match(es)."
+    if node_name == "figure_table":
+        return f"{len(value.figure_summaries)} figure(s), {len(value.table_summaries)} table(s) summarized."
+    if node_name == "novelty":
+        return f"Novelty rating: {value.novelty_rating}."
+    if node_name == "methodology":
+        return f"Soundness rating: {value.soundness_rating}."
+    if node_name == "citation":
+        return f"Citation quality: {value.citation_quality_rating}."
+    if node_name == "evidence_reproducibility":
+        return f"Overall rating: {value.overall_rating}."
+    if node_name == "reflection":
+        return f"Confidence: {value.overall_confidence}, {len(value.flags)} flag(s), needs_revision={value.needs_revision}."
+    if node_name == "final_review":
+        return f"Final recommendation: {value.final_recommendation} (confidence: {value.confidence})."
+    return "Completed."
+
+
+def _run_review_graph(run_id: str, parsed_paper: ParsedPaper) -> Iterator[Dict[str, Any]]:
+    """Streams the compiled review graph node-by-node, translating each
+    LangGraph update into the SSE event shape the UI already understands.
+    Real graph execution -- not a re-implementation of the graph's logic."""
+    graph = _get_review_graph()
+
+    # Stage-1 nodes (paper_understanding, literature_rag, figure_table,
+    # methodology, evidence_reproducibility) all start immediately at START --
+    # announce them running up front rather than only on completion, so the
+    # UI shows the parallel fan-out instead of cards jumping straight to done.
+    for node in ("paper_understanding", "literature_rag", "figure_table", "methodology", "evidence_reproducibility"):
+        yield _event(_GRAPH_NODE_TO_STAGE[node], "running", message="Running...")
+
+    try:
+        for update in graph.stream(
+            {"parsed_paper": parsed_paper},
+            config={"configurable": {"thread_id": run_id}},
+            stream_mode="updates",
+        ):
+            for node_name, partial_state in update.items():
+                if node_name == "prepare_revision":
+                    revision_count = partial_state.get("revision_count", 1)
+                    yield _event(
+                        "reflection_agent", "running",
+                        message=f"Revision pass {revision_count}: re-running assessment agents with feedback...",
+                    )
+                    # This pass re-triggers exactly these 4 nodes -- announce
+                    # them running again so the UI doesn't sit on stale "done".
+                    for node in ("novelty", "methodology", "citation", "evidence_reproducibility"):
+                        yield _event(_GRAPH_NODE_TO_STAGE[node], "running", message=f"Revision pass {revision_count}...")
+                    continue
+                if node_name == "ready_for_synthesis":
+                    continue  # pure pass-through sync point, nothing user-facing
+
+                stage = _GRAPH_NODE_TO_STAGE.get(node_name)
+                if stage is None:
+                    continue
+
+                # Each real node returns exactly one {output_key: value} pair
+                # (verified in core/graph/nodes.py) -- prepare_revision/
+                # ready_for_synthesis, the only exceptions, are handled above.
+                (_, output_value), = partial_state.items()
+                yield _event(
+                    stage, "done",
+                    message=_summary_message(node_name, output_value),
+                    result=_serialize(output_value),
+                )
+    except Exception as exc:
+        yield _event(
+            "pipeline", "error",
+            message=f"Review graph failed: {exc}", trace=traceback.format_exc(limit=5),
+        )
 
 
 def _embedding_device() -> str:

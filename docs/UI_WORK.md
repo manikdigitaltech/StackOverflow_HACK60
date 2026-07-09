@@ -92,9 +92,55 @@ uploading genuine sample PDFs and watching Docling parsing, RAG chunking/
 indexing, and the embedding-based Novelty Agent complete live with correct,
 real data at every stage.
 
+## LangGraph wiring + full dynamic-data pass (this session)
+
+The placeholder cards are gone. `server/pipeline.py` now streams the compiled
+review graph (`core/graph/build_graph.py`) node-by-node via
+`graph.stream(..., stream_mode="updates")`, translating each LangGraph update
+into an SSE event under the exact `stage` key the UI's `CARDS` array expects
+— see `_GRAPH_NODE_TO_STAGE` in `server/pipeline.py`. A bounded revision pass
+re-announces the 4 re-run agents as `"running"` again rather than leaving
+stale `"done"` cards. Verified live end to end: uploaded a real PDF, watched
+all 9 agents complete including a genuine revision pass (methodology
+fair→good, citation poor→fair between passes), through to `final_report`.
+
+Two agents needed new cards that didn't exist before (`paper_understanding`
+and `figure_table`, the graph's LLM nodes, are distinct from the pre-existing
+`parse`/`vision` cards which cover Docling parsing and raw VLM figure
+description respectively) plus a second novelty card (`novelty_llm_agent`,
+alongside the pre-existing embedding-based `novelty_agent`) — see
+`NOVELTY_AGENT.md` for why there are two novelty implementations.
+
+The **Final Review** and **Human Approval** views were, until this session,
+100% hardcoded fake data (a fabricated "4.1/5" score, invented strengths
+about a paper that was never uploaded) — neither was wired to any event at
+all. Both now render the real `final_report` event's structured output
+(`FinalReview`: summary, strengths, weaknesses, questions for authors,
+novelty/citation/reproducibility/evidence analysis, recommendation +
+confidence) the moment it arrives. The fabricated 6-dimension 0-5 score card
+is replaced with the 4 real qualitative ratings the agents actually produce
+(novelty/methodology/citation/evidence, each poor-through-excellent or
+low-through-high, never a numeric score no agent emits) via a category→bar
+percentage mapping. "Export JSON" is now a real client-side download of the
+actual `FinalReview` payload; "Download PDF" honestly alerts that it isn't
+implemented rather than doing nothing silently. Approve/Request
+Changes/Reject buttons similarly alert that no persistence exists yet
+(Phase 2, no MySQL writes) instead of looking actionable and doing nothing.
+
+The docked panel's Overview tab gained real per-agent rendering for every
+newly-wired card (previously fell through to a raw JSON dump). The
+Reasoning/Evidence/Memory tabs — static "not built yet" placeholders since
+the agents genuinely didn't exist — are now dynamic: Reasoning shows each
+agent's real `reasoning`/`summary` field (or, for Final Review, its
+novelty/citation/reproducibility/evidence analysis); Evidence shows the real
+verdict lists (claim verdicts, coverage verdicts, aspect verdicts,
+contribution verdicts, reflection flags); Memory reports whether *this run*
+actually triggered a revision pass, rather than a blanket "no tracking
+exists" now that the loop is real.
+
 ## Not yet done
 
-Doesn't show the new LangGraph orchestration's per-agent progress yet — still
-displays the old placeholder cards for methodology/citation/evidence/
-reflection/final review (see `LANGGRAPH_ORCHESTRATION.md`). No human-in-the-loop
-approval view wired to real data yet (Phase 2).
+No human-in-the-loop approval *persistence* (Phase 2, no MySQL writes) — the
+Human Approval view now shows the real final review, but Approve/Reject
+clicks are visibly inert (an honest alert, not a silent no-op) rather than
+wired to `core.db`.

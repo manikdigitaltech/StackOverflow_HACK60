@@ -1675,26 +1675,22 @@
               </div>
               <div class="sp-pane" data-pane="reasoning">
                 <div class="sp-block">
-                  <p>No per-stage reasoning trace exists yet -- this tab lights up once the actual LLM agents
-                    (Novelty/Methodology/Evidence/Citation) are built and can expose their chain of reasoning. See the
-                    Overview tab for this stage's real output.</p>
+                  <p>Select a stage on the left to see its real reasoning trace once it completes.</p>
                 </div>
               </div>
               <div class="sp-pane" data-pane="evidence">
                 <div class="sp-block">
-                  <p>No structured evidence trace exists yet. Overview shows what's real for this stage today.</p>
+                  <p>Select a stage on the left to see its real structured verdicts once it completes.</p>
                 </div>
               </div>
               <div class="sp-pane" data-pane="memory">
                 <div class="sp-block">
-                  <p>No agent memory/revision-pass tracking exists yet (that's the Reflection Agent's job once built).
-                    See Overview for this stage's real output.</p>
+                  <p>Select a stage on the left -- the 4 assessment agents and Reflection show real revision-pass status here once the pipeline runs.</p>
                 </div>
               </div>
               <div class="sp-pane" data-pane="logs">
                 <div class="sp-block">
-                  <p>No prompt log exists for this stage yet. See core/config/prompts.yaml for the templates that do
-                    exist.</p>
+                  <p>No per-request prompt log is captured yet. See core/config/prompts.yaml for the actual templates every agent above uses.</p>
                 </div>
               </div>
             </div>
@@ -1708,36 +1704,24 @@
           <div class="section-title">Human Approval</div>
           <div class="section-sub">Review the AI-generated assessment before it's finalized.</div>
 
-          <div class="review-doc">
-            <h3>Summary</h3>
-            <p>The paper proposes a sparse attention mechanism for retrieval over long scientific documents. The core
-              idea is a reasonable extension of existing sparse-attention work, with solid empirical support on two
-              benchmarks, though comparison against the strongest recent baseline is missing.</p>
-            <h3>Strengths</h3>
-            <ul>
-              <li>Clear ablations isolating the contribution of the sparsity pattern.</li>
-              <li>Reproducible setup: code and configs are linked.</li>
-            </ul>
-            <h3>Weaknesses</h3>
-            <ul>
-              <li>Missing comparison to a 2025 baseline that addresses a similar problem.</li>
-              <li>No error bars reported on the main results table.</li>
-            </ul>
+          <div class="review-doc" id="approvalDoc">
+            <p>Upload a paper and let the review finish -- the real Final Review Report will appear here once
+              `final_report` completes.</p>
           </div>
 
           <div class="approval-actions">
-            <button class="btn-approve"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button class="btn-approve" onclick="handleApprovalAction('approve')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M20 6 9 17l-5-5" />
               </svg>Approve</button>
-            <button class="btn-changes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button class="btn-changes" onclick="handleApprovalAction('changes')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
               </svg>Request Changes</button>
-            <button class="btn-reject"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button class="btn-reject" onclick="handleApprovalAction('reject')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 6 6 18M6 6l12 12" />
               </svg>Reject</button>
           </div>
 
-          <textarea class="comment-box" placeholder="Add reviewer comments (optional)…"></textarea>
+          <textarea class="comment-box" id="approvalComment" placeholder="Add reviewer comments (optional)…"></textarea>
         </div>
       </section>
 
@@ -1746,74 +1730,51 @@
         <div class="final-grid">
           <div class="score-card">
             <div class="score-ring">
-              <div class="score-ring-val">4.1<span>/ 5</span></div>
+              <div class="score-ring-val" id="finalConfidenceVal">—</div>
             </div>
-            <span class="rec-pill">Weak Accept</span>
-            <div class="subscore-list">
-              <div class="subscore-row">
-                <div class="subscore-top"><span>Novelty</span><b>4</b></div>
-                <div class="subscore-track">
-                  <div class="subscore-fill" style="width:80%"></div>
-                </div>
-              </div>
-              <div class="subscore-row">
-                <div class="subscore-top"><span>Clarity</span><b>4</b></div>
-                <div class="subscore-track">
-                  <div class="subscore-fill" style="width:80%"></div>
-                </div>
-              </div>
-              <div class="subscore-row">
-                <div class="subscore-top"><span>Methodology</span><b>4</b></div>
-                <div class="subscore-track">
-                  <div class="subscore-fill" style="width:80%"></div>
-                </div>
-              </div>
-              <div class="subscore-row">
-                <div class="subscore-top"><span>Citation Quality</span><b>3</b></div>
-                <div class="subscore-track">
-                  <div class="subscore-fill" style="width:60%"></div>
-                </div>
-              </div>
-              <div class="subscore-row">
-                <div class="subscore-top"><span>Evidence</span><b>4</b></div>
-                <div class="subscore-track">
-                  <div class="subscore-fill" style="width:80%"></div>
-                </div>
-              </div>
-              <div class="subscore-row">
-                <div class="subscore-top"><span>Reproducibility</span><b>5</b></div>
-                <div class="subscore-track">
-                  <div class="subscore-fill" style="width:100%"></div>
-                </div>
-              </div>
-            </div>
+            <span class="rec-pill" id="finalRecPill">Waiting…</span>
+            <div class="subscore-list" id="finalSubscores"></div>
           </div>
 
           <div class="final-panel">
+            <h3>Paper Summary</h3>
+            <p id="finalSummary">Upload a paper and let the review finish to see the real Final Review Report here.</p>
+
             <h3>Strengths</h3>
-            <ul>
-              <li>Well-isolated ablations on the sparsity mechanism.</li>
-              <li>Full reproducibility package: code, configs, and seeds included.</li>
-            </ul>
+            <ul id="finalStrengths"><li>—</li></ul>
+
             <h3>Weaknesses</h3>
-            <ul>
-              <li>Missing comparison against a closely related 2025 baseline.</li>
-              <li>No error bars on headline results.</li>
-            </ul>
+            <ul id="finalWeaknesses"><li>—</li></ul>
+
+            <h3>Questions for Authors</h3>
+            <ul id="finalQuestions"><li>—</li></ul>
+
+            <h3>Novelty Analysis</h3>
+            <p id="finalNoveltyAnalysis">—</p>
+
+            <h3>Citation Quality</h3>
+            <p id="finalCitationQuality">—</p>
+
+            <h3>Reproducibility</h3>
+            <p id="finalReproducibility">—</p>
+
+            <h3>Evidence Mapping</h3>
+            <p id="finalEvidenceMapping">—</p>
+
+            <h3>Missing Baselines</h3>
+            <ul id="finalMissingBaselines"><li>(none)</li></ul>
+
             <h3>Reviewer Recommendation</h3>
-            <p>Weak Accept — the contribution is solid and reproducible, but the missing baseline comparison should be
-              addressed before camera-ready.</p>
-            <h3>Supporting Literature</h3>
-            <ul>
-              <li>Guo et al., "Sparse Transformers for Long Documents" (2024)</li>
-              <li>Iyer et al., "Retrieval-Augmented Long-Context QA" (2025)</li>
-            </ul>
+            <p id="finalRecommendationText">—</p>
+
+            <h3>Literature Considered (top 5)</h3>
+            <ul id="finalSupportingLit"><li>No literature retrieved.</li></ul>
 
             <div class="export-row">
-              <button class="btn-export primary"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+              <button class="btn-export primary" onclick="exportFinalReviewPdf()"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
                   <path d="M12 3v13M6 11l6 6 6-6M4 21h16" />
                 </svg>Download PDF</button>
-              <button class="btn-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <button class="btn-export" onclick="exportFinalReviewJson()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3M16 3h5v5M21 3l-9 9" />
                 </svg>Export JSON</button>
             </div>
@@ -1848,12 +1809,16 @@
 
     // Ordered card list -- stageKeys are the exact `stage` values server/pipeline.py emits.
     // Cards with 2 stageKeys (rag) update from whichever of the two arrives most recently.
+    // Order matches the actual pipeline execution order in server/pipeline.py.
     const CARDS = [
-      { key: 'parse', label: 'Paper Understanding', stageKeys: ['parse'], icon: ICONS.parse },
-      { key: 'vision', label: 'Figure & Table Vision Analysis', stageKeys: ['vision'], icon: ICONS.vision },
+      { key: 'parse', label: 'PDF Parsing (Docling)', stageKeys: ['parse'], icon: ICONS.parse },
+      { key: 'paper_understanding_agent', label: 'Paper Understanding Agent', stageKeys: ['paper_understanding_agent'], icon: ICONS.parse },
+      { key: 'vision', label: 'Figure & Table Vision Analysis (VLM)', stageKeys: ['vision'], icon: ICONS.vision },
+      { key: 'figure_table_agent', label: 'Figure & Table Agent (Summary)', stageKeys: ['figure_table_agent'], icon: ICONS.evidence },
       { key: 'rag', label: 'RAG Indexing (Paper Index)', stageKeys: ['chunk', 'paper_rag_build'], icon: ICONS.rag },
-      { key: 'literature_rag', label: 'Literature Retrieval', stageKeys: ['literature_rag'], icon: ICONS.literature },
-      { key: 'novelty_agent', label: 'Novelty Agent', stageKeys: ['novelty_agent'], icon: ICONS.novelty },
+      { key: 'literature_rag', label: 'Literature RAG Agent', stageKeys: ['literature_rag'], icon: ICONS.literature },
+      { key: 'novelty_agent', label: 'Novelty Agent (Embedding Similarity)', stageKeys: ['novelty_agent'], icon: ICONS.novelty },
+      { key: 'novelty_llm_agent', label: 'Novelty Agent (LLM Reasoning)', stageKeys: ['novelty_llm_agent'], icon: ICONS.novelty },
       { key: 'methodology_agent', label: 'Methodology Agent', stageKeys: ['methodology_agent'], icon: ICONS.methodology },
       { key: 'citation_agent', label: 'Citation Agent', stageKeys: ['citation_agent'], icon: ICONS.citation },
       { key: 'evidence_agent', label: 'Evidence & Reproducibility Agent', stageKeys: ['evidence_agent'], icon: ICONS.evidence },
@@ -2065,6 +2030,10 @@
           document.getElementById('pdfSections').textContent = event.section_names.length;
           document.getElementById('pdfTablesFigures').textContent = `${event.num_tables} / ${event.num_figures}`;
         }
+        if (event.stage === 'final_report' && event.status === 'done') {
+          renderFinalReviewView();
+          renderApprovalView();
+        }
         if (card) {
           lastUpdatedCardKey = card.key;
           if (selectedCardKey === null) renderDockedPanel(card.key);   // auto-follow: always show the latest activity
@@ -2126,11 +2095,15 @@
 
       const overviewPane = document.querySelector('.sp-pane[data-pane="overview"]');
       overviewPane.innerHTML = renderPanelBody(card, status);
+
+      document.querySelector('.sp-pane[data-pane="reasoning"]').innerHTML = renderReasoningPane(card);
+      document.querySelector('.sp-pane[data-pane="evidence"]').innerHTML = renderEvidencePane(card);
+      document.querySelector('.sp-pane[data-pane="memory"]').innerHTML = renderMemoryPane(card);
     }
 
     function renderPanelBody(card, status) {
       if (status === 'waiting') return `<div class="sp-block"><p>This stage hasn't run yet -- upload a paper to see live output here.</p></div>`;
-      if (status === 'not_implemented') return `<div class="sp-block"><h5>Status</h5><p>This part of the architecture (${card.label}) is not built yet. It's tracked in MERGE_CONTEXT.md as upcoming work -- nothing here is faked.</p></div>`;
+      if (status === 'not_implemented') return `<div class="sp-block"><h5>Status</h5><p>This part of the architecture (${card.label}) is not built yet. It's tracked in docs/CONTEXT.md as upcoming work -- nothing here is faked.</p></div>`;
 
       if (card.key === 'parse') {
         const e = liveEvents['parse'];
@@ -2173,9 +2146,113 @@
         }
         return body || `<div class="sp-block"><p>Indexing in progress...</p></div>`;
       }
+      if (card.key === 'novelty_agent') {
+        const e = liveEvents['novelty_agent'];
+        if (!e || e.status !== 'done' || !e.report) return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting...'}</p></div>`;
+        const r = e.report;
+        const neighbors = r.top_similar_papers.length
+          ? `<div class="sp-block"><h5>Most Similar Corpus Papers</h5>${r.top_similar_papers.map(p => `<p>${escapeHtml(p.paper_id)} -- ${p.similarity}% similar</p>`).join('')}</div>` : '';
+        return `
+        <div class="sp-block"><h5>Novelty Score: ${r.novelty_score} / 100 (recommendation: ${escapeHtml(r.recommendation)})</h5>
+          <p>Overall similarity to nearest corpus neighbor: ${r.overall_similarity}% -- confidence ${r.confidence}%</p></div>` +
+          neighbors +
+          `<div class="sp-block"><h5>Decision Trace</h5><p>${r.decision_trace.rules.map(escapeHtml).join(' → ')}</p></div>`;
+      }
       if (card.key === 'literature_rag') {
         const e = liveEvents['literature_rag'];
-        return `<div class="sp-block"><h5>Status</h5><p>${escapeHtml(e ? e.message : '...')}</p></div>`;
+        if (!e) return `<div class="sp-block"><p>Waiting...</p></div>`;
+        if (e.status !== 'done' || !e.result) return `<div class="sp-block"><p>${escapeHtml(e.message || e.status)}</p></div>`;
+        if (!e.result.matches.length) return `<div class="sp-block"><p>${escapeHtml(e.message)} (empty literature corpus, or nothing topically close was found)</p></div>`;
+        return e.result.matches.map(m => `
+        <div class="sp-block"><h5>${escapeHtml(m.title)}${m.year ? ' (' + m.year + ')' : ''}</h5>
+          <p>similarity ${m.similarity_score.toFixed(3)}${m.section_type ? ' -- ' + escapeHtml(m.section_type) : ''}</p>
+          <p>${escapeHtml(m.chunk_text)}</p>
+        </div>`).join('');
+      }
+      if (card.key === 'paper_understanding_agent') {
+        const e = liveEvents['paper_understanding_agent'];
+        if (!e || e.status !== 'done' || !e.result) return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting...'}</p></div>`;
+        const r = e.result;
+        return `
+        <div class="sp-block"><h5>Summary</h5><p>${escapeHtml(r.summary)}</p></div>
+        <div class="sp-block"><h5>Stated Contributions</h5><ul>${r.stated_contributions.map(c => `<li>${escapeHtml(c)}</li>`).join('')}</ul></div>
+        <div class="sp-block"><h5>Key Terms</h5><p>${r.key_terms.map(escapeHtml).join(', ')}</p></div>`;
+      }
+      if (card.key === 'figure_table_agent') {
+        const e = liveEvents['figure_table_agent'];
+        if (!e || e.status !== 'done' || !e.result) return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting...'}</p></div>`;
+        const r = e.result;
+        const figs = r.figure_summaries.map(f => `
+        <div class="sp-block"><h5>${escapeHtml(f.figure_id)}${f.caption_self_contained ? '' : ' (caption not self-contained)'}</h5><p>${escapeHtml(f.interpretation)}</p></div>`).join('');
+        const tables = r.table_summaries.map(t => `
+        <div class="sp-block"><h5>${escapeHtml(t.table_id)}${t.caption_self_contained ? '' : ' (caption not self-contained)'}</h5><p>${escapeHtml(t.key_takeaway)}</p></div>`).join('');
+        const note = r.extraction_consistency_note ? `<div class="sp-block"><h5>Extraction Note</h5><p>${escapeHtml(r.extraction_consistency_note)}</p></div>` : '';
+        return figs + tables + note || `<div class="sp-block"><p>No figures or tables in this paper.</p></div>`;
+      }
+      if (card.key === 'novelty_llm_agent') {
+        const e = liveEvents['novelty_llm_agent'];
+        if (!e || e.status !== 'done' || !e.result) return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting...'}</p></div>`;
+        const r = e.result;
+        const verdicts = r.contribution_verdicts.map(v => `
+        <div class="sp-block"><h5>${escapeHtml(v.contribution)} -- ${v.verdict.toUpperCase()}</h5><p>${escapeHtml(v.note)}</p></div>`).join('');
+        const overlaps = r.overlapping_work.length
+          ? `<div class="sp-block"><h5>Overlapping Work</h5>${r.overlapping_work.map(o => `<p><b>${escapeHtml(o.compared_paper_title)}</b>: ${escapeHtml(o.similarity_note)}</p>`).join('')}</div>` : '';
+        return `<div class="sp-block"><h5>Novelty Rating: ${titleCase(r.novelty_rating)}</h5></div>` + verdicts + overlaps +
+          `<div class="sp-block"><h5>Reasoning</h5><p>${escapeHtml(r.reasoning)}</p></div>`;
+      }
+      if (card.key === 'methodology_agent') {
+        const e = liveEvents['methodology_agent'];
+        if (!e || e.status !== 'done' || !e.result) return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting...'}</p></div>`;
+        const r = e.result;
+        const aspects = r.aspect_verdicts.map(v => `
+        <div class="sp-block"><h5>${titleCase(v.aspect)} -- ${v.assessment.toUpperCase()}</h5><p>${escapeHtml(v.note)}</p></div>`).join('');
+        const missing = r.missing_baselines.length
+          ? `<div class="sp-block"><h5>Missing Baselines</h5><ul>${r.missing_baselines.map(b => `<li>${escapeHtml(b)}</li>`).join('')}</ul></div>` : '';
+        return `<div class="sp-block"><h5>Soundness: ${titleCase(r.soundness_rating)}</h5></div>` + aspects + missing +
+          `<div class="sp-block"><h5>Reasoning</h5><p>${escapeHtml(r.reasoning)}</p></div>`;
+      }
+      if (card.key === 'citation_agent') {
+        const e = liveEvents['citation_agent'];
+        if (!e || e.status !== 'done' || !e.result) return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting...'}</p></div>`;
+        const r = e.result;
+        const verdicts = r.coverage_verdicts.length
+          ? r.coverage_verdicts.map(v => `
+          <div class="sp-block"><h5>${escapeHtml(v.related_paper_title)} -- ${v.cited ? 'CITED' : 'NOT CITED'}</h5><p>${escapeHtml(v.note)}</p></div>`).join('')
+          : `<div class="sp-block"><p>No retrieved literature to check coverage against.</p></div>`;
+        return `<div class="sp-block"><h5>Citation Quality: ${titleCase(r.citation_quality_rating)}</h5></div>` + verdicts +
+          `<div class="sp-block"><h5>Reasoning</h5><p>${escapeHtml(r.reasoning)}</p></div>`;
+      }
+      if (card.key === 'evidence_agent') {
+        const e = liveEvents['evidence_agent'];
+        if (!e || e.status !== 'done' || !e.result) return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting...'}</p></div>`;
+        const r = e.result;
+        const claims = r.claim_verdicts.map(v => `
+        <div class="sp-block"><h5>${v.verdict.toUpperCase()}</h5><p>${escapeHtml(v.claim)}</p><p><i>${escapeHtml(v.note)}</i></p></div>`).join('');
+        const repro = r.reproducibility_verdicts.map(v => `
+        <div class="sp-block"><h5>${titleCase(v.aspect)} -- ${v.assessment.toUpperCase()}</h5><p>${escapeHtml(v.note)}</p></div>`).join('');
+        return `<div class="sp-block"><h5>Overall Rating: ${titleCase(r.overall_rating)}</h5></div>` + claims + repro +
+          `<div class="sp-block"><h5>Reasoning</h5><p>${escapeHtml(r.reasoning)}</p></div>`;
+      }
+      if (card.key === 'reflection_agent') {
+        const e = liveEvents['reflection_agent'];
+        if (!e || e.status !== 'done' || !e.result) return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting...'}</p></div>`;
+        const r = e.result;
+        const flags = r.flags.length
+          ? r.flags.map(f => `
+          <div class="sp-block"><h5>[${f.severity.toUpperCase()}] ${escapeHtml(f.source_agent)}: ${escapeHtml(f.flagged_item)}</h5><p>${escapeHtml(f.issue)}</p></div>`).join('')
+          : `<div class="sp-block"><p>No flags raised.</p></div>`;
+        return `<div class="sp-block"><h5>Confidence: ${titleCase(r.overall_confidence)} -- needs_revision: ${r.needs_revision}</h5><p>${escapeHtml(r.summary)}</p></div>` + flags;
+      }
+      if (card.key === 'final_report') {
+        const e = liveEvents['final_report'];
+        if (!e || e.status !== 'done' || !e.result) return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting...'}</p></div>`;
+        const r = e.result;
+        return `
+        <div class="sp-block"><h5>Recommendation: ${titleCase(r.final_recommendation)} (confidence: ${titleCase(r.confidence)})</h5></div>
+        <div class="sp-block"><h5>Summary</h5><p>${escapeHtml(r.paper_summary)}</p></div>
+        <div class="sp-block"><h5>Strengths</h5><ul>${r.strengths.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul></div>
+        <div class="sp-block"><h5>Weaknesses</h5><ul>${r.weaknesses.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul></div>
+        See the "Final Review" tab in the top nav for the full formatted report.`;
       }
       return `<div class="sp-block"><p>${escapeHtml(JSON.stringify(liveEvents[card.stageKeys[0]] || {}, null, 2))}</p></div>`;
     }
@@ -2203,8 +2280,74 @@
       return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
-    // ---- Panel tabs (Reasoning/Evidence/Memory/Logs are static placeholders --
-    // real per-agent traces don't exist until the agents themselves are built) ----
+    function titleCase(s) {
+      return s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
+    }
+
+    // Categorical rating -> a display percentage. No numeric score is
+    // fabricated anywhere in this file -- every agent only ever emits one of
+    // these fixed labels, so this is purely a bar-fill mapping for them.
+    const RATING_PERCENT = { low: 33, medium: 66, high: 100, poor: 20, fair: 45, good: 70, excellent: 95 };
+    function ratingToPercent(rating) { return RATING_PERCENT[rating] ?? 0; }
+
+    // ---- Docked panel: Reasoning/Evidence/Memory tabs, populated with real
+    // per-agent data when the selected stage has it, honest fallback otherwise ----
+    function renderReasoningPane(card) {
+      const e = liveEvents[card.stageKeys[0]];
+      if (!e || e.status !== 'done') return `<div class="sp-block"><p>This stage hasn't finished yet.</p></div>`;
+      const r = e.result || e.report;
+      if (!r) return `<div class="sp-block"><p>This stage has no separate reasoning trace -- see Overview for its real output.</p></div>`;
+      if (r.reasoning) return `<div class="sp-block"><p>${escapeHtml(r.reasoning)}</p></div>`;
+      if (r.summary) return `<div class="sp-block"><p>${escapeHtml(r.summary)}</p></div>`;
+      if (r.decision_trace) return `<div class="sp-block"><p>${r.decision_trace.rules.map(escapeHtml).join(' → ')}</p></div>`;
+      if (card.key === 'final_report') {
+        return `
+        <div class="sp-block"><h5>Novelty Analysis</h5><p>${escapeHtml(r.novelty_analysis)}</p></div>
+        <div class="sp-block"><h5>Citation Quality</h5><p>${escapeHtml(r.citation_quality)}</p></div>
+        <div class="sp-block"><h5>Reproducibility</h5><p>${escapeHtml(r.reproducibility)}</p></div>
+        <div class="sp-block"><h5>Evidence Mapping</h5><p>${escapeHtml(r.evidence_mapping)}</p></div>`;
+      }
+      return `<div class="sp-block"><p>This stage has no free-text reasoning field -- see Overview for its real structured output.</p></div>`;
+    }
+
+    function renderEvidencePane(card) {
+      const e = liveEvents[card.stageKeys[0]];
+      if (!e || e.status !== 'done') return `<div class="sp-block"><p>This stage hasn't finished yet.</p></div>`;
+      const r = e.result;
+      if (!r) return `<div class="sp-block"><p>No structured evidence trace for this stage -- see Overview.</p></div>`;
+      if (r.claim_verdicts) return r.claim_verdicts.map(v => `
+        <div class="sp-block"><h5>${v.verdict.toUpperCase()}</h5><p>${escapeHtml(v.claim)}</p><p><i>${escapeHtml(v.note)}</i></p></div>`).join('');
+      if (r.coverage_verdicts) return r.coverage_verdicts.length ? r.coverage_verdicts.map(v => `
+        <div class="sp-block"><h5>${escapeHtml(v.related_paper_title)} -- ${v.cited ? 'CITED' : 'NOT CITED'}</h5><p>${escapeHtml(v.note)}</p></div>`).join('')
+        : `<div class="sp-block"><p>No retrieved literature to check.</p></div>`;
+      if (r.aspect_verdicts) return r.aspect_verdicts.map(v => `
+        <div class="sp-block"><h5>${titleCase(v.aspect)} -- ${v.assessment.toUpperCase()}</h5><p>${escapeHtml(v.note)}</p></div>`).join('');
+      if (r.contribution_verdicts) return r.contribution_verdicts.map(v => `
+        <div class="sp-block"><h5>${escapeHtml(v.contribution)} -- ${v.verdict.toUpperCase()}</h5><p>${escapeHtml(v.note)}</p></div>`).join('');
+      if (r.flags) return r.flags.length ? r.flags.map(f => `
+        <div class="sp-block"><h5>[${f.severity.toUpperCase()}] ${escapeHtml(f.source_agent)}</h5><p>${escapeHtml(f.issue)}</p></div>`).join('')
+        : `<div class="sp-block"><p>No flags raised.</p></div>`;
+      return `<div class="sp-block"><p>No structured evidence trace for this stage -- see Overview.</p></div>`;
+    }
+
+    // The 4 assessment agents (novelty_llm, methodology, citation, evidence)
+    // plus reflection genuinely re-run on a bounded revision pass -- this
+    // pane says so when this run actually triggered one, rather than always
+    // claiming "no revision tracking" now that the loop is real.
+    function renderMemoryPane(card) {
+      const REVISION_CARDS = ['novelty_llm_agent', 'methodology_agent', 'citation_agent', 'evidence_agent', 'reflection_agent'];
+      if (!REVISION_CARDS.includes(card.key)) {
+        return `<div class="sp-block"><p>This stage is not part of the bounded self-reflection revision loop.</p></div>`;
+      }
+      const activity = document.getElementById('activityList');
+      const revisionHappened = activity && activity.textContent.includes('Revision pass');
+      if (!revisionHappened) {
+        return `<div class="sp-block"><p>No revision pass was triggered on this run -- Reflection found no "major" issue, so this stage ran exactly once.</p></div>`;
+      }
+      return `<div class="sp-block"><p>This run's Reflection Agent flagged a major issue and triggered a bounded revision pass -- this stage re-ran with that feedback folded into its prompt. The Overview tab shows the latest (post-revision) output; see the Live Activity feed for the full timeline of both passes.</p></div>`;
+    }
+
+    // ---- Panel tabs: real data where an agent produces it, honest fallback where it doesn't ----
     document.querySelectorAll('.sp-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         document.querySelectorAll('.sp-tab').forEach(t => t.classList.remove('active'));
@@ -2213,6 +2356,77 @@
         document.querySelector(`.sp-pane[data-pane="${tab.dataset.tab}"]`).classList.add('active');
       });
     });
+
+    // ---- Final Review / Human Approval views: populated once final_report completes ----
+    function renderFinalReviewView() {
+      const e = liveEvents['final_report'];
+      if (!e || e.status !== 'done' || !e.result) return;
+      const r = e.result;
+
+      document.getElementById('finalConfidenceVal').textContent = titleCase(r.confidence);
+      document.getElementById('finalRecPill').textContent = titleCase(r.final_recommendation);
+
+      const subscores = [
+        ['Novelty', liveEvents['novelty_llm_agent']?.result?.novelty_rating],
+        ['Methodology', liveEvents['methodology_agent']?.result?.soundness_rating],
+        ['Citation Quality', liveEvents['citation_agent']?.result?.citation_quality_rating],
+        ['Evidence & Reproducibility', liveEvents['evidence_agent']?.result?.overall_rating],
+      ];
+      document.getElementById('finalSubscores').innerHTML = subscores.map(([label, rating]) => `
+        <div class="subscore-row">
+          <div class="subscore-top"><span>${label}</span><b>${rating ? titleCase(rating) : '—'}</b></div>
+          <div class="subscore-track"><div class="subscore-fill" style="width:${ratingToPercent(rating)}%"></div></div>
+        </div>`).join('');
+
+      document.getElementById('finalSummary').textContent = r.paper_summary;
+      document.getElementById('finalStrengths').innerHTML = r.strengths.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>';
+      document.getElementById('finalWeaknesses').innerHTML = r.weaknesses.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>';
+      document.getElementById('finalQuestions').innerHTML = r.questions_for_authors.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>';
+      document.getElementById('finalNoveltyAnalysis').textContent = r.novelty_analysis;
+      document.getElementById('finalCitationQuality').textContent = r.citation_quality;
+      document.getElementById('finalReproducibility').textContent = r.reproducibility;
+      document.getElementById('finalEvidenceMapping').textContent = r.evidence_mapping;
+      document.getElementById('finalMissingBaselines').innerHTML = r.missing_baselines.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>';
+      document.getElementById('finalRecommendationText').textContent = `${titleCase(r.final_recommendation)} (confidence: ${titleCase(r.confidence)})`;
+
+      const litMatches = liveEvents['literature_rag']?.result?.matches || [];
+      document.getElementById('finalSupportingLit').innerHTML = litMatches.slice(0, 5)
+        .map(m => `<li>${escapeHtml(m.title)}${m.year ? ' (' + m.year + ')' : ''}</li>`).join('') || '<li>No literature retrieved for this paper.</li>';
+    }
+
+    function renderApprovalView() {
+      const e = liveEvents['final_report'];
+      const doc = document.getElementById('approvalDoc');
+      if (!e || e.status !== 'done' || !e.result) return;
+      const r = e.result;
+      doc.innerHTML = `
+        <h3>Summary</h3><p>${escapeHtml(r.paper_summary)}</p>
+        <h3>Strengths</h3><ul>${r.strengths.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>'}</ul>
+        <h3>Weaknesses</h3><ul>${r.weaknesses.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>'}</ul>
+        <h3>Recommendation</h3><p>${titleCase(r.final_recommendation)} (confidence: ${titleCase(r.confidence)})</p>`;
+    }
+
+    function handleApprovalAction(action) {
+      alert('Human-in-the-loop persistence is not wired yet (tracked in docs/CONTEXT.md as Phase 2 -- no MySQL writes exist yet). This click is not recorded anywhere.');
+    }
+
+    function exportFinalReviewJson() {
+      const e = liveEvents['final_report'];
+      if (!e || !e.result) { alert('No final review available yet -- wait for the pipeline to finish.'); return; }
+      const blob = new Blob([JSON.stringify(e.result, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `review_${runId || 'output'}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function exportFinalReviewPdf() {
+      alert('PDF export is not implemented yet -- use "Export JSON" for the real structured review output.');
+    }
 
     // Initial render so cards show "Waiting" before any upload.
     renderCards();
