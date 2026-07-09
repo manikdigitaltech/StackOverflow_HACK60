@@ -19,6 +19,7 @@ from pathlib import Path
 import faiss
 
 from core.config.rag_settings import RAG_SETTINGS
+from core.config.settings import settings
 from core.rag.embeddings.embedding_provider import Specter2EmbeddingProvider
 from core.rag.models import CorpusRecord
 
@@ -126,7 +127,7 @@ def build_and_persist_index(
         batch_size: papers embedded per forward pass, to bound peak memory
             on CPU over a corpus of thousands of papers.
     """
-    provider = embedding_provider or Specter2EmbeddingProvider()
+    provider = embedding_provider or Specter2EmbeddingProvider(device=settings.embeddings.device)
     index_path.parent.mkdir(parents=True, exist_ok=True)
     records_path.parent.mkdir(parents=True, exist_ok=True)
 

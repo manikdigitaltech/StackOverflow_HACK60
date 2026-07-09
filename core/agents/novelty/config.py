@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+from core.config.settings import settings
+
 # --------------------------------------------------------------------------
 # Logging
 # --------------------------------------------------------------------------
@@ -38,7 +40,7 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
 # --------------------------------------------------------------------------
 
 EMBEDDING_MODEL_NAME: str = "all-MiniLM-L6-v2"
-EMBEDDING_DEVICE: str = "cpu"
+EMBEDDING_DEVICE: str = settings.embeddings.device
 EMBEDDING_BATCH_SIZE: int = 16
 EMBEDDING_DIM: int = 384  # native dimensionality of all-MiniLM-L6-v2
 

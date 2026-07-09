@@ -41,6 +41,23 @@ class CitationAgent(BaseAgent):
         parsed_paper: ParsedPaper = inputs["parsed_paper"]
         literature_context: LiteratureContext = inputs["literature_context"]
 
+        if not literature_context.matches:
+            # Nothing retrieved to check coverage against -- asking the LLM
+            # anyway invites it to hallucinate a verdict for a paper that
+            # doesn't exist (observed: an empty-title "not cited" entry).
+            # Deterministically short-circuit instead.
+            self._log("No literature retrieved -- skipping LLM call, returning empty coverage.")
+            return CitationAssessment(
+                coverage_verdicts=[],
+                citation_quality_rating="fair",
+                reasoning=(
+                    "No related literature was retrieved for this paper's topic, so "
+                    "citation coverage against a background corpus could not be assessed. "
+                    "This reflects a gap in the literature corpus, not a judgment on the "
+                    "paper's own reference list."
+                ),
+            )
+
         literature_text = _format_literature_context(literature_context)
         references_text = _format_paper_references(parsed_paper)
 

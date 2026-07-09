@@ -13,6 +13,7 @@ from pathlib import Path
 import faiss
 
 from core.config.rag_settings import RAG_SETTINGS
+from core.config.settings import settings
 from core.rag.embeddings.embedding_provider import Specter2EmbeddingProvider
 from core.rag.models import CorpusRecord, RetrievalResult
 
@@ -21,7 +22,7 @@ class LiteratureIndex:
     """Loads and queries the persistent PeerRead FAISS index."""
 
     def __init__(self, embedding_provider: Specter2EmbeddingProvider | None = None):
-        self._embedding_provider = embedding_provider or Specter2EmbeddingProvider()
+        self._embedding_provider = embedding_provider or Specter2EmbeddingProvider(device=settings.embeddings.device)
         self._faiss_index: faiss.Index | None = None
         self._records: list[CorpusRecord] = []  # parallel to FAISS row order
 
