@@ -25,15 +25,15 @@ SECTION_PRIORITY_WEIGHTS: Dict[str, float] = {
     "Experiments": 1.0,
     "Results": 1.0,
     "Ablation Study": 0.8,
-    "Introduction": 0.6,
-    "Related Work": 0.5,
-    "Background": 0.5,
-    "Discussion": 0.6,
-    "Limitations": 0.6,
-    "Conclusion": 0.5,
-    "Future Work": 0.3,
-    "Preamble": 0.1,
-    "Appendix": 0.2,
+    "Introduction": 0.35,
+    "Related Work": 0.25,
+    "Background": 0.25,
+    "Discussion": 0.4,
+    "Limitations": 0.4,
+    "Conclusion": 0.25,
+    "Future Work": 0.15,
+    "Preamble": 0.05,
+    "Appendix": 0.15,
     "Acknowledgements": 0.0,
     "References": 0.0,   # deliberately excluded from prose context -- see module docstring
 }
@@ -46,7 +46,7 @@ def build_paper_context(parsed_paper: ParsedPaper, max_tokens: int) -> str:
     truncated per-section according to priority weight, guaranteed to stay
     within max_tokens (approximately -- see token_budget.py's estimate).
     """
-    sections = [s for s in parsed_paper.sections if s.name != "References"]
+    sections = [s for s in parsed_paper.sections if s.name not in ("References", "Abstract")]
 
     # Abstract is always included in full (and is small) regardless of budget math.
     abstract_tokens = estimate_tokens(parsed_paper.abstract)
