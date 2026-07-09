@@ -13,7 +13,7 @@ back into that file. Status verified against the actual codebase, not just docs.
 | Multi-Agent Controller via LangGraph (§6.2) | `core/graph/build_graph.py` |
 | Novelty / Method / Evidence / Citation agents (§6.3) | `core/agents/` (9 agents) |
 | RAG grounding with FAISS + LangChain (§6.4) | `core/rag/` (Index A hybrid + Index B literature) |
-| Semantic Scholar + arXiv retrieval (§9) | `core/rag/live_sources/` — ⚠️ built but not wired into any agent |
+| Semantic Scholar + arXiv retrieval (§9) | `core/rag/live_sources/` via `core/agents/literature_rag_agent.py` — live-source merge into `LiteratureContext`, on by default, degrades gracefully offline (`RAG_SETTINGS.live_sources.enable_arxiv`/`enable_semantic_scholar` to disable) |
 | Self-Reflection / Verifier agent (§1, §6.6) | `core/agents/reflection_agent.py` (drives bounded revision loop) |
 | Local LLM within 24 GB budget, Qwen2.5 7B (§3, §5, §11) | `core/llm/` (Ollama, no cloud calls) |
 | VLMs for figures/tables (§4) | `core/parsing/figure_analyzer.py` — ⚠️ no vision model pulled |
@@ -28,8 +28,13 @@ back into that file. Status verified against the actual codebase, not just docs.
 - [ ] **Wire LangGraph into the live UI** — `server/pipeline.py` still emits
   `status="not_implemented"` for methodology/citation/evidence/reflection/final_review.
   The graph works standalone; the dashboard doesn't drive it yet.
-- [ ] **Wire live sources & query helpers** — arXiv/Semantic Scholar clients +
-  HyDE/decompose are built and tested, but no agent calls them.
+- [x] **Wire live sources into `LiteratureRAGAgent`** — arXiv/Semantic
+  Scholar clients now merge into `LiteratureContext` (on by default,
+  graceful offline degradation) via `core/rag/retrieval/tools.py`;
+  `NoveltyAgent`/`CitationAgent`
+  label live vs. curated-corpus hits in their prompts. See
+  `docs/AGENTS_ARCHITECTURE.md`. HyDE/decompose (`query_helpers.py`) remain
+  unwired — separate, smaller follow-up (query-shaping, not source-merging).
 - [ ] **Wire DB persistence** — schema + repositories exist (`core/db/`, incl.
   `approval_repository.py`), but nothing writes to them; MySQL isn't running.
 
@@ -68,7 +73,8 @@ back into that file. Status verified against the actual codebase, not just docs.
 4. **Wire LangGraph into the live dashboard** — mechanical, low-risk; replaces
    placeholder cards.
 5. **Bonus polish** — rebuttal re-review, hallucination/grounding metrics
-   (DeepEval/RAGAS), wire live sources, pull a vision model + `VISION__ENABLED=true`.
+   (DeepEval/RAGAS), wire HyDE/decompose query-shaping, pull a vision model
+   + `VISION__ENABLED=true`.
 
 ---
 

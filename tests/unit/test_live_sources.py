@@ -6,6 +6,7 @@ exception, only as an empty list plus a logged warning.
 """
 import requests
 
+from core.config.settings import settings
 from core.rag.live_sources.arxiv_client import search_arxiv
 from core.rag.live_sources.semantic_scholar_client import search_semantic_scholar
 
@@ -41,6 +42,46 @@ _ATOM_3_ENTRIES = """<?xml version="1.0" encoding="UTF-8"?>
   <entry><id>http://arxiv.org/abs/2</id><title>Paper Two</title><summary>s2</summary><published>2024-01-02</published></entry>
   <entry><id>http://arxiv.org/abs/3</id><title>Paper Three</title><summary>s3</summary><published>2024-01-03</published></entry>
 </feed>"""
+
+
+def test_search_semantic_scholar_sends_api_key_header_when_configured(monkeypatch):
+    """If LIVE_SOURCES__SEMANTIC_SCHOLAR_API_KEY is set, it must be sent as
+    x-api-key -- omitted entirely (not sent as empty string) when unset."""
+    monkeypatch.setattr(settings.live_sources, "semantic_scholar_api_key", "test-key-123")
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+        def json(self):
+            return {"data": []}
+
+    def fake_get(*args, **kwargs):
+        captured["headers"] = kwargs.get("headers")
+        return FakeResponse()
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    search_semantic_scholar("any query")
+    assert captured["headers"] == {"x-api-key": "test-key-123"}
+
+
+def test_search_semantic_scholar_omits_header_when_no_key(monkeypatch):
+    monkeypatch.setattr(settings.live_sources, "semantic_scholar_api_key", None)
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+        def json(self):
+            return {"data": []}
+
+    def fake_get(*args, **kwargs):
+        captured["headers"] = kwargs.get("headers")
+        return FakeResponse()
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    search_semantic_scholar("any query")
+    assert captured["headers"] == {}
 
 
 def test_search_arxiv_respects_k(monkeypatch):

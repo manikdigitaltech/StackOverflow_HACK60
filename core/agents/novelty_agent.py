@@ -14,12 +14,17 @@ from core.schemas.agent_output_schemas import PaperUnderstandingOutput, Literatu
 from core.llm.structured_output import invoke_for_json, StructuredOutputError
 
 
+_SOURCE_LABELS = {"semantic_scholar": "via Semantic Scholar", "arxiv": "via arXiv"}
+
+
 def _format_literature_context(context: LiteratureContext, max_chars_per_chunk: int = 400) -> str:
     if not context.matches:
         return "No related literature was retrieved."
     lines = []
     for m in context.matches:
-        lines.append(f'- "{m.title}" ({m.year}): {m.chunk_text[:max_chars_per_chunk]}')
+        label = _SOURCE_LABELS.get(m.source)
+        tag = f" [{label}]" if label else ""
+        lines.append(f'- "{m.title}" ({m.year}){tag}: {m.chunk_text[:max_chars_per_chunk]}')
     return "\n".join(lines)
 
 
