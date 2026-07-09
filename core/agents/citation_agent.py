@@ -11,7 +11,7 @@ to keep the prompt focused and leave token budget for the paper's own
 
 from typing import Any, Dict
 from core.agents.base_agent import BaseAgent, AgentExecutionError
-from core.agents.revision import revision_feedback_block
+from core.agents.revision import revision_feedback_block, rebuttal_feedback_block
 from core.schemas.agent_output_schemas import ParsedPaper, LiteratureContext, CitationAssessment
 from core.llm.structured_output import invoke_for_json, StructuredOutputError
 
@@ -75,6 +75,7 @@ class CitationAgent(BaseAgent):
             reference_count=len(parsed_paper.references),
             paper_references=references_text,
             revision_feedback=revision_feedback_block(inputs),
+            rebuttal_feedback=rebuttal_feedback_block(inputs),
         )
 
         try:

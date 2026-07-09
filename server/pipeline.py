@@ -386,6 +386,46 @@ def _run_review_graph(run_id: str, parsed_paper: ParsedPaper, reviewed_paper_id:
         )
 
 
+def run_rebuttal_rereview(run_id: str, rebuttal_text: str) -> Dict[str, Any]:
+    """Re-review a previously-reviewed paper in light of an author rebuttal
+    (problem statement section 8). Reuses the same graph singleton on a fresh
+    `{run_id}-rebuttal` thread so the revised verdict goes through the full
+    pipeline -- including the human-approval gate -- exactly like the original.
+    Returns how the recommendation moved plus the new run id to approve it on.
+    """
+    from core.graph.rebuttal import run_rebuttal_rereview as _rerun
+
+    run = _RUNS.get(run_id)
+    if run is None or "parsed_paper" not in run:
+        return {"error": f"Unknown run_id {run_id!r} -- upload and stream a review first."}
+    if not (rebuttal_text and rebuttal_text.strip()):
+        return {"error": "rebuttal_text must be a non-empty author rebuttal."}
+
+    graph = _get_review_graph()
+    original_review = graph.get_state({"configurable": {"thread_id": run_id}}).values.get("final_review")
+    original_rec = original_review.final_recommendation if original_review else None
+
+    rebuttal_run_id = f"{run_id}-rebuttal"
+    result = _rerun(
+        run["parsed_paper"], rebuttal_text,
+        graph=graph, thread_id=rebuttal_run_id, original_recommendation=original_rec,
+    )
+
+    # Register the rebuttal thread so its revised verdict can be signed off via
+    # the same POST /api/approval/{run_id} flow (resume_with_approval keys on _RUNS;
+    # its MySQL write is skipped for a rebuttal thread that has no reviewed_papers
+    # row, but the graph resume itself still works).
+    _RUNS[rebuttal_run_id] = {"parsed_paper": run["parsed_paper"], "rebuttal_of": run_id}
+
+    return {
+        "run_id": run_id,
+        "rebuttal_run_id": rebuttal_run_id,
+        "awaiting_approval": result["awaiting_approval"],
+        "comparison": result["comparison"],
+        "revised_review": _serialize(result["revised_review"]) if result["revised_review"] else None,
+    }
+
+
 def _embedding_device() -> str:
     device = getattr(settings.embeddings, "device", "cpu")
     return device if device in ("cpu", "cuda") else "cpu"

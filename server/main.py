@@ -30,7 +30,13 @@ from pydantic import BaseModel
 
 from core.db.repositories.review_repository import ReviewRepository
 from core.db.session import get_session
-from server.pipeline import check_system_health, query_paper_index, resume_with_approval, run_pipeline
+from server.pipeline import (
+    check_system_health,
+    query_paper_index,
+    resume_with_approval,
+    run_pipeline,
+    run_rebuttal_rereview,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = REPO_ROOT / "data" / "uploads"
@@ -79,6 +85,22 @@ def stream(run_id: str):
             yield f"data: {json.dumps(event)}\n\n"
 
     return StreamingResponse(event_source(), media_type="text/event-stream")
+
+
+class RebuttalRequest(BaseModel):
+    rebuttal_text: str   # the authors' written response to the original review
+
+
+@app.post("/api/rebuttal/{run_id}")
+def rebuttal(run_id: str, body: RebuttalRequest):
+    """Rebuttal-aware re-review: re-run the reviewed paper with the authors'
+    rebuttal folded in, returning the revised recommendation, how it moved vs.
+    the original, and a `rebuttal_run_id` to approve the revised verdict on via
+    POST /api/approval/{rebuttal_run_id}."""
+    result = run_rebuttal_rereview(run_id, body.rebuttal_text)
+    if "error" in result:
+        raise HTTPException(409, result["error"])
+    return result
 
 
 @app.get("/api/query/{run_id}")

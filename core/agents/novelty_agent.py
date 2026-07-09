@@ -9,7 +9,7 @@ rough edge.
 
 from typing import Any, Dict
 from core.agents.base_agent import BaseAgent, AgentExecutionError
-from core.agents.revision import revision_feedback_block
+from core.agents.revision import revision_feedback_block, rebuttal_feedback_block
 from core.schemas.agent_output_schemas import PaperUnderstandingOutput, LiteratureContext, NoveltyAssessment
 from core.llm.structured_output import invoke_for_json, StructuredOutputError
 
@@ -44,6 +44,7 @@ class NoveltyAgent(BaseAgent):
             contributions=contributions_text,
             literature_matches=literature_text,
             revision_feedback=revision_feedback_block(inputs),
+            rebuttal_feedback=rebuttal_feedback_block(inputs),
         )
 
         try:

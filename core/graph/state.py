@@ -56,6 +56,12 @@ class ReviewGraphState(TypedDict, total=False):
     # not an identical re-run of the same inputs.
     revision_feedback: Optional[str]
 
+    # Set only on a rebuttal-aware re-review (core/graph/rebuttal.py): the
+    # author's written response to the original review. The 4 assessment agents
+    # fold it into their prompt so they reconsider their verdict against the
+    # rebuttal. Independent of revision_feedback -- a re-review can carry both.
+    rebuttal_text: Optional[str]
+
     # --- Stage 4: synthesis ---
     final_review: FinalReview
 
