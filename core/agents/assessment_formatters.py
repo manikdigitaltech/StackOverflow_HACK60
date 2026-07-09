@@ -8,7 +8,7 @@ duplicating the same formatting logic in each.
 from core.schemas.agent_output_schemas import (
     PaperUnderstandingOutput, FigureTableSummary, NoveltyAssessment,
     MethodologyAssessment, CitationAssessment, EvidenceReproducibilityAssessment,
-    ReflectionNotes,
+    ReflectionNotes, AdversarialCritique,
 )
 
 
@@ -65,6 +65,18 @@ def format_evidence_repro(a: EvidenceReproducibilityAssessment) -> str:
     for v in a.reproducibility_verdicts:
         lines.append(f"  - [{v.assessment}] {v.aspect}: {v.note}")
     lines.append(f"Reasoning: {a.reasoning}")
+    return "\n".join(lines)
+
+
+def format_adversarial_critique(c: AdversarialCritique) -> str:
+    lines = [f"Weakest agent per the adversarial critic: {c.weakest_agent}"]
+    if c.attacks:
+        for a in c.attacks:
+            lines.append(f"  - [{a.severity}] ({a.source_agent}) Attacked verdict: {a.attacked_verdict}")
+            lines.append(f"      Counter-argument: {a.counter_argument}")
+    else:
+        lines.append("  (no attacks raised)")
+    lines.append(f"Summary: {c.summary}")
     return "\n".join(lines)
 
 

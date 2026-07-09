@@ -60,11 +60,14 @@ class RetrievalResult(BaseModel):
     """A single ranked hit returned by any retrieval tool.
 
     Uniform across chunk-level (Index A) and paper-level (Index B, Semantic
-    Scholar, arXiv) sources so that agent code can consume results from any
-    tool without branching on shape.
+    Scholar, arXiv, and the other optional live sources) so that agent code
+    can consume results from any tool without branching on shape.
     """
 
-    source: Literal["paper_rag", "literature_rag", "semantic_scholar", "arxiv"]
+    source: Literal[
+        "paper_rag", "literature_rag", "semantic_scholar", "arxiv",
+        "google_scholar", "exa", "openalex", "openreview", "dblp",
+    ]
     score: float
     content: str
     metadata: dict = Field(default_factory=dict)

@@ -173,11 +173,34 @@ assume anything about commit/push state from this document.
    variance). Fixed by replacing the literal example with a placeholder
    plus an explicit decision rubric tied to the upstream agents' actual
    ratings; verified on a 6-paper smoke test that recommendations now
-   genuinely vary (`weak_reject`/`weak_accept` mixed, no repeats). A full
-   clean 38-paper re-run with both fixes was in progress as this was
-   written — run it yourself and check `output_results/peerread_eval.metrics.json`
-   for current numbers; don't trust any number pasted here as still current,
-   per this file's own §5 rule.
+   genuinely vary (`weak_reject`/`weak_accept` mixed, no repeats).
+
+   **Clean 38-paper run with both fixes (most recent numbers — re-run and
+   replace these, don't trust them as permanently current, per this file's
+   own §5 rule):**
+
+   | Metric | Value |
+   |---|---|
+   | n_usable / n_total | 35 / 38 (3 residual schema-validation misses — same low-frequency LLM noise as before, not the systematic bug) |
+   | accuracy | 0.5143 |
+   | f1 | 0.4138 |
+   | cohen_kappa | 0.0067 |
+   | ground_truth_accept_rate | 0.3714 |
+   | predicted_accept_rate | 0.4571 |
+   | `final_recommendation` distribution | `weak_reject`: 19, `weak_accept`: 16 (no `accept`/`reject`/`borderline` at all) |
+
+   **Honest read:** the degenerate-collapse bug is fixed — recommendations
+   now vary with the actual paper instead of being one constant value, and
+   `predicted_accept_rate` (45.7%) is no longer suspiciously exactly 0 or
+   suspiciously exactly equal to the base rate. But Cohen's κ ≈ 0.007 means
+   the recommendations, cast to binary accept/reject, are barely better than
+   chance agreement with PeerRead's real ICLR-2017 decisions — 51% accuracy
+   is barely above a coin flip. The recommendation distribution is also
+   narrower than it should be (only the two "weak" tiers ever fire, never a
+   confident `accept`/`reject` or a genuine `borderline`), suggesting
+   `final_review_agent` still hedges rather than committing. This is real,
+   still-open review-quality work, not a harness bug — worth investigating
+   before trusting these numbers as a meaningful accept/reject signal.
 4. **Data** — done for `iclr_2017`: `data/peerread_raw/` cloned (reviews +
    the 38 `test`-split PDFs; train/dev PDFs skipped, not needed),
    `core/rag/ingestion/build_corpus.py` run (389-paper literature index) and

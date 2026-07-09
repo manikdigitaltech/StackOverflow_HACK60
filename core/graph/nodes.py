@@ -10,6 +10,7 @@ a review run doesn't pay LLM-client construction cost at every node.
 """
 from __future__ import annotations
 
+from core.agents.adversarial_critic_agent import AdversarialCriticAgent
 from core.agents.citation_agent import CitationAgent
 from core.agents.evidence_reproducibility_agent import EvidenceReproducibilityAgent
 from core.agents.figure_table_agent import FigureTableAgent
@@ -34,6 +35,7 @@ class ReviewGraphNodes:
         self.methodology_agent = MethodologyAgent(llm, prompt_manager)
         self.citation_agent = CitationAgent(llm, prompt_manager)
         self.evidence_agent = EvidenceReproducibilityAgent(llm, prompt_manager)
+        self.adversarial_critic_agent = AdversarialCriticAgent(llm, prompt_manager)
         self.reflection_agent = ReflectionAgent(llm, prompt_manager)
         self.final_review_agent = FinalReviewAgent(llm, prompt_manager)
 
@@ -85,6 +87,21 @@ class ReviewGraphNodes:
 
     # --- Stage 3: self-reflection + bounded revision loop ---
 
+    def adversarial_critic(self, state: ReviewGraphState) -> dict:
+        """Attacks only methodology/citation/evidence's own verdicts (never
+        novelty -- out of scope by design). Runs alongside reflection, off
+        the same three assessments, and re-runs on a revision pass exactly
+        because its AND-join sources (see build_graph.py) are re-triggered
+        by prepare_revision -- so it always attacks the CURRENT pass's
+        verdicts, not stale ones from before a revision."""
+        result = self.adversarial_critic_agent.run({
+            "parsed_paper": state["parsed_paper"],
+            "methodology_assessment": state["methodology_assessment"],
+            "citation_assessment": state["citation_assessment"],
+            "evidence_assessment": state["evidence_assessment"],
+        })
+        return {"adversarial_critique": result}
+
     def reflection(self, state: ReviewGraphState) -> dict:
         result = self.reflection_agent.run({
             "parsed_paper": state["parsed_paper"],
@@ -92,6 +109,7 @@ class ReviewGraphNodes:
             "methodology_assessment": state["methodology_assessment"],
             "citation_assessment": state["citation_assessment"],
             "evidence_assessment": state["evidence_assessment"],
+            "adversarial_critique": state["adversarial_critique"],
         })
         return {"reflection_notes": result}
 

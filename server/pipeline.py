@@ -5,13 +5,15 @@ the browser over Server-Sent Events.
 
 Deliberately honest about what exists: parse / figure-vision / RAG-chunk /
 paper-RAG-index / the full 9-agent LangGraph review (paper understanding
-through final review) are real code paths, executed for real, on the real
-uploaded PDF. Only human-in-the-loop approval and MySQL persistence remain
-unbuilt (Phase 2) -- that one stage is emitted with status="not_implemented"
-rather than faked, so the UI never shows work no code actually did.
+through final review) / MySQL persistence of the review + human decisions
+are all real code paths, executed for real. The one thing NOT built is a
+true LangGraph interrupt/resume -- the graph still runs start-to-finish in
+one pass; a human reviews and records a decision on the completed result
+afterward, rather than the graph pausing mid-run to wait for one.
 """
 from __future__ import annotations
 
+import logging
 import time
 import traceback
 from pathlib import Path
@@ -21,12 +23,24 @@ from core.agents.novelty import NoveltyEvaluationAgent, NoveltyEvaluationAgentEr
 from core.agents.novelty.adapter import parsed_paper_to_novelty_input
 from core.agents.novelty.config import DEFAULT_PATHS as NOVELTY_PATHS
 from core.config.settings import settings
+from core.db.models import ReviewedPaperStatus
+from core.db.repositories.reflection_repository import ReflectionRepository
+from core.db.repositories.review_repository import ReviewRepository
+from core.db.session import get_session
 from core.graph.build_graph import build_review_graph
 from core.rag.adapters import parsed_paper_to_chunker_input
 from core.rag.chunking.section_chunker import chunk_paper
 from core.rag.embeddings.embedding_provider import BgeSmallEmbeddingProvider
 from core.rag.indexes.paper_index import PaperIndex
 from core.schemas.agent_output_schemas import ParsedPaper
+
+logger = logging.getLogger(__name__)
+
+# ReviewAssessment rows are scoped to these 5 "judgment" nodes (matches
+# core/db/models.py's ReviewAssessment docstring) -- paper_understanding/
+# literature_rag/figure_table are inputs/context, not judgments, so they
+# aren't persisted as assessments.
+_ASSESSMENT_NODES = {"novelty", "methodology", "citation", "evidence_reproducibility", "final_review"}
 
 # LangGraph node name -> the `stage` key the UI's CARDS array expects (see
 # ai_paper_reviewer_ui.html). "prepare_revision" and "ready_for_synthesis"
@@ -40,6 +54,7 @@ _GRAPH_NODE_TO_STAGE = {
     "methodology": "methodology_agent",
     "citation": "citation_agent",
     "evidence_reproducibility": "evidence_agent",
+    "adversarial_critic": "adversarial_critic_agent",
     "reflection": "reflection_agent",
     "final_review": "final_report",
 }
@@ -54,10 +69,67 @@ def _event(stage: str, status: str, **detail) -> Dict[str, Any]:
     return {"stage": stage, "status": status, "ts": time.time(), **detail}
 
 
-def run_pipeline(run_id: str, pdf_path: str) -> Iterator[Dict[str, Any]]:
+# --- MySQL persistence: best-effort, never fatal to the live SSE pipeline ---
+# A DB hiccup should degrade to "this run wasn't saved", not break the run
+# itself -- same philosophy as the literature corpus's fail-soft fallbacks.
+
+def _db_create_reviewed_paper(run_id: str, uploaded_filename: Optional[str]) -> Optional[int]:
+    try:
+        with get_session() as session:
+            return ReviewRepository(session).create_reviewed_paper(run_id, uploaded_filename or "").id
+    except Exception:
+        logger.warning("Could not create reviewed_paper row for run %s", run_id, exc_info=True)
+        return None
+
+
+def _db_update_parsed_title(reviewed_paper_id: Optional[int], title: str) -> None:
+    if reviewed_paper_id is None:
+        return
+    try:
+        with get_session() as session:
+            ReviewRepository(session).update_parsed_title(reviewed_paper_id, title)
+    except Exception:
+        logger.warning("Could not update parsed_title for reviewed_paper %s", reviewed_paper_id, exc_info=True)
+
+
+def _db_save_assessment(reviewed_paper_id: Optional[int], agent_name: str, output_json: dict, revision_pass: int) -> None:
+    if reviewed_paper_id is None:
+        return
+    try:
+        with get_session() as session:
+            ReviewRepository(session).save_assessment(reviewed_paper_id, agent_name, output_json, revision_pass)
+    except Exception:
+        logger.warning("Could not save assessment %s for reviewed_paper %s", agent_name, reviewed_paper_id, exc_info=True)
+
+
+def _db_save_reflection_flags(reviewed_paper_id: Optional[int], flags: list) -> None:
+    if reviewed_paper_id is None or not flags:
+        return
+    try:
+        with get_session() as session:
+            repo = ReflectionRepository(session)
+            for flag in flags:
+                repo.save_flags(reviewed_paper_id, flag.source_agent, [flag.issue])
+    except Exception:
+        logger.warning("Could not save reflection flags for reviewed_paper %s", reviewed_paper_id, exc_info=True)
+
+
+def _db_update_status(reviewed_paper_id: Optional[int], status: ReviewedPaperStatus) -> None:
+    if reviewed_paper_id is None:
+        return
+    try:
+        with get_session() as session:
+            ReviewRepository(session).update_status(reviewed_paper_id, status)
+    except Exception:
+        logger.warning("Could not update status for reviewed_paper %s", reviewed_paper_id, exc_info=True)
+
+
+def run_pipeline(run_id: str, pdf_path: str, uploaded_filename: Optional[str] = None) -> Iterator[Dict[str, Any]]:
     """Generator: yields one or more events per stage as they actually complete."""
     _RUNS[run_id] = {"pdf_path": pdf_path}
     t_start = time.time()
+    reviewed_paper_id = _db_create_reviewed_paper(run_id, uploaded_filename)
+    _RUNS[run_id]["reviewed_paper_id"] = reviewed_paper_id
 
     # --- Stage: parse (Scientific Document Understanding) ---
     yield _event("parse", "running", message="Parsing PDF with Docling (layout + OCR-if-needed)...")
@@ -67,6 +139,7 @@ def run_pipeline(run_id: str, pdf_path: str) -> Iterator[Dict[str, Any]]:
         t0 = time.time()
         parsed_paper: ParsedPaper = DoclingParser().parse(pdf_path)
         _RUNS[run_id]["parsed_paper"] = parsed_paper
+        _db_update_parsed_title(reviewed_paper_id, parsed_paper.title)
         yield _event(
             "parse", "done", elapsed_s=round(time.time() - t0, 2),
             title=parsed_paper.title,
@@ -78,6 +151,7 @@ def run_pipeline(run_id: str, pdf_path: str) -> Iterator[Dict[str, Any]]:
         )
     except Exception as exc:
         yield _event("parse", "error", message=str(exc), trace=traceback.format_exc(limit=3))
+        _db_update_status(reviewed_paper_id, ReviewedPaperStatus.failed)
         return  # nothing downstream can run without a parsed paper
 
     # --- Stage: figure/table vision analysis ---
@@ -156,11 +230,18 @@ def run_pipeline(run_id: str, pdf_path: str) -> Iterator[Dict[str, Any]]:
 
     # --- Stages: the full 9-agent LangGraph review (paper understanding
     # through final review), replacing the old placeholder cards with real
-    # graph-driven events. ---
-    yield from _run_review_graph(run_id, parsed_paper)
+    # graph-driven events. Each judgment agent's output + reflection's flags
+    # are persisted to MySQL as they complete (see _db_* helpers above). ---
+    yield from _run_review_graph(run_id, parsed_paper, reviewed_paper_id)
 
-    # --- Stage that genuinely doesn't exist in the codebase yet (Phase 2) ---
-    yield _event("human_approval", "not_implemented", label="Human-in-the-Loop Approval")
+    # --- Human approval: the graph doesn't pause for this (no true
+    # interrupt/resume -- see module docstring), but a real decision made via
+    # POST /api/approval/{run_id} now genuinely persists to human_approvals. ---
+    yield _event(
+        "human_approval", "not_implemented",
+        label="Human-in-the-Loop Approval",
+        message="The graph doesn't pause here yet, but Approve/Request Changes/Reject in the UI now really persist a decision.",
+    )
 
     yield _event("pipeline", "complete", total_elapsed_s=round(time.time() - t_start, 2))
 
@@ -202,6 +283,8 @@ def _summary_message(node_name: str, value: Any) -> str:
         return f"Citation quality: {value.citation_quality_rating}."
     if node_name == "evidence_reproducibility":
         return f"Overall rating: {value.overall_rating}."
+    if node_name == "adversarial_critic":
+        return f"{len(value.attacks)} attack(s) raised -- weakest agent: {value.weakest_agent}."
     if node_name == "reflection":
         return f"Confidence: {value.overall_confidence}, {len(value.flags)} flag(s), needs_revision={value.needs_revision}."
     if node_name == "final_review":
@@ -209,11 +292,15 @@ def _summary_message(node_name: str, value: Any) -> str:
     return "Completed."
 
 
-def _run_review_graph(run_id: str, parsed_paper: ParsedPaper) -> Iterator[Dict[str, Any]]:
+def _run_review_graph(run_id: str, parsed_paper: ParsedPaper, reviewed_paper_id: Optional[int]) -> Iterator[Dict[str, Any]]:
     """Streams the compiled review graph node-by-node, translating each
     LangGraph update into the SSE event shape the UI already understands.
-    Real graph execution -- not a re-implementation of the graph's logic."""
+    Real graph execution -- not a re-implementation of the graph's logic.
+    Each judgment node's output is persisted to MySQL (review_assessments)
+    as it completes, tagged with the revision pass it belongs to; reflection's
+    flags are persisted to reflection_flags the same way."""
     graph = _get_review_graph()
+    revision_pass = 0
 
     # Stage-1 nodes (paper_understanding, literature_rag, figure_table,
     # methodology, evidence_reproducibility) all start immediately at START --
@@ -230,15 +317,22 @@ def _run_review_graph(run_id: str, parsed_paper: ParsedPaper) -> Iterator[Dict[s
         ):
             for node_name, partial_state in update.items():
                 if node_name == "prepare_revision":
-                    revision_count = partial_state.get("revision_count", 1)
+                    revision_pass = partial_state.get("revision_count", revision_pass + 1)
                     yield _event(
                         "reflection_agent", "running",
-                        message=f"Revision pass {revision_count}: re-running assessment agents with feedback...",
+                        message=f"Revision pass {revision_pass}: re-running assessment agents with feedback...",
                     )
                     # This pass re-triggers exactly these 4 nodes -- announce
                     # them running again so the UI doesn't sit on stale "done".
                     for node in ("novelty", "methodology", "citation", "evidence_reproducibility"):
-                        yield _event(_GRAPH_NODE_TO_STAGE[node], "running", message=f"Revision pass {revision_count}...")
+                        yield _event(_GRAPH_NODE_TO_STAGE[node], "running", message=f"Revision pass {revision_pass}...")
+                    # adversarial_critic has no direct edge from prepare_revision
+                    # (see build_graph.py) -- it re-fires "for free" once
+                    # methodology/citation/evidence_reproducibility finish their
+                    # revision re-run, via its own 3-source AND-join (confirmed
+                    # by scripts/test_graph_topology.py). Announce it running now
+                    # too, for the same reason as the 4 nodes above.
+                    yield _event(_GRAPH_NODE_TO_STAGE["adversarial_critic"], "running", message=f"Revision pass {revision_pass}...")
                     continue
                 if node_name == "ready_for_synthesis":
                     continue  # pure pass-through sync point, nothing user-facing
@@ -251,12 +345,21 @@ def _run_review_graph(run_id: str, parsed_paper: ParsedPaper) -> Iterator[Dict[s
                 # (verified in core/graph/nodes.py) -- prepare_revision/
                 # ready_for_synthesis, the only exceptions, are handled above.
                 (_, output_value), = partial_state.items()
+                serialized = _serialize(output_value)
+
+                if node_name in _ASSESSMENT_NODES:
+                    _db_save_assessment(reviewed_paper_id, node_name, serialized, revision_pass)
+                if node_name == "reflection":
+                    _db_save_reflection_flags(reviewed_paper_id, output_value.flags)
+
                 yield _event(
                     stage, "done",
                     message=_summary_message(node_name, output_value),
-                    result=_serialize(output_value),
+                    result=serialized,
                 )
+        _db_update_status(reviewed_paper_id, ReviewedPaperStatus.awaiting_approval)
     except Exception as exc:
+        _db_update_status(reviewed_paper_id, ReviewedPaperStatus.failed)
         yield _event(
             "pipeline", "error",
             message=f"Review graph failed: {exc}", trace=traceback.format_exc(limit=5),
@@ -305,6 +408,36 @@ def query_paper_index(run_id: str, query: str, k: int = 5) -> Dict[str, Any]:
 
 def get_run(run_id: str) -> Optional[Dict[str, Any]]:
     return _RUNS.get(run_id)
+
+
+def record_human_approval(run_id: str, decision: str, feedback: Optional[str], decided_by: Optional[str]) -> Dict[str, Any]:
+    """Persists a real reviewer decision for a completed run -- called by
+    POST /api/approval/{run_id}. Not a LangGraph interrupt/resume (see
+    module docstring): the review already ran to completion; this records
+    what a human decided about it afterward.
+    """
+    from core.db.models import ApprovalDecision
+    from core.db.repositories.approval_repository import ApprovalRepository
+
+    try:
+        decision_enum = ApprovalDecision(decision)
+    except ValueError:
+        return {"ok": False, "error": f"Invalid decision {decision!r}; must be one of: "
+                                       f"{[d.value for d in ApprovalDecision]}"}
+
+    with get_session() as session:
+        review_repo = ReviewRepository(session)
+        reviewed_paper = review_repo.get_by_trace_id(run_id)
+        if reviewed_paper is None:
+            return {"ok": False, "error": f"No reviewed_paper found for run_id={run_id!r} "
+                                           f"(review may have failed before persistence, or DB was unreachable)"}
+
+        ApprovalRepository(session).save_decision(
+            reviewed_paper.id, decision_enum, feedback=feedback, decided_by=decided_by
+        )
+        review_repo.update_status(reviewed_paper.id, ReviewedPaperStatus.completed)
+
+    return {"ok": True, "run_id": run_id, "decision": decision}
 
 
 def check_system_health() -> Dict[str, Any]:

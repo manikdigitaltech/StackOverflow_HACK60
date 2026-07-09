@@ -7,21 +7,35 @@ Shape:
     START --> paper_understanding --\\
           \\-> literature_rag --------+--> novelty ----------\\
           \\-> figure_table (also -\\  \\-> citation           \\
-          \\-> methodology         |  \\------------------------> reflection --[revise]--> prepare_revision --\\
-          \\-> evidence_repro -----/------------------------------/    |                                       |
-                                                                        [proceed]                     (loops back to
-                                                                        v                               novelty/methodology/
-                                                              ready_for_synthesis <-- figure_table       citation/evidence_repro)
-                                                                        |
-                                                                        v
-                                                                  final_review --> END
+          \\-> methodology         |  \\-----------------------+--> adversarial_critic --\\
+          \\-> evidence_repro -----/-------------------------- /                          \\
+                                                                 \\------------------------> reflection --[revise]--> prepare_revision --\\
+                                                                                                  |                                       |
+                                                                                                  [proceed]                     (loops back to
+                                                                                                  v                               novelty/methodology/
+                                                                                        ready_for_synthesis <-- figure_table       citation/evidence_repro
+                                                                                                  |                                (which re-triggers
+                                                                                                  v                              adversarial_critic's own
+                                                                                            final_review --> END                  join automatically))
 
 Key point: add_edge()/add_conditional_edges() into the SAME node are
 independent OR-triggers, not a join -- an AND-join needs all sources listed
-together in one add_edge([...]) call. reflection's join is exactly the 4
-assessment agents it reads; figure_table's one-shot output and reflection's
-"proceed" decision are combined via ready_for_synthesis, since a conditional
-edge's dynamic target can't itself be a list-join entry (see nodes.py).
+together in one add_edge([...]) call. adversarial_critic's join is exactly
+the 3 assessments it attacks (methodology, citation, evidence_reproducibility
+-- NOT novelty, which it doesn't consume; a genuine list-join always waits
+for every listed source regardless of which superstep each finishes in, so
+omitting novelty here isn't a race the way separate single-source edges
+would be). reflection's join now includes adversarial_critic alongside the
+4 assessment agents it already read, since it folds the critique into its
+own flags/needs_revision decision (see reflection_agent.py). Deliberately
+NOT wired with its own direct edge from prepare_revision: adversarial_critic
+re-fires on a revision pass "for free" because its 3 join sources
+(methodology/citation/evidence_reproducibility) are themselves re-triggered
+by prepare_revision -- adding a second edge into it would reintroduce the
+OR-trigger bug this whole note warns about. figure_table's one-shot output
+and reflection's "proceed" decision are combined via ready_for_synthesis,
+since a conditional edge's dynamic target can't itself be a list-join entry
+(see nodes.py).
 """
 from __future__ import annotations
 
@@ -63,6 +77,7 @@ def build_review_graph(llm=None, prompt_manager=None, checkpointer=None):
     graph.add_node("methodology", nodes.methodology)
     graph.add_node("citation", nodes.citation)
     graph.add_node("evidence_reproducibility", nodes.evidence_reproducibility)
+    graph.add_node("adversarial_critic", nodes.adversarial_critic)
     graph.add_node("reflection", nodes.reflection)
     graph.add_node("prepare_revision", nodes.prepare_revision)
     graph.add_node("ready_for_synthesis", nodes.ready_for_synthesis)
@@ -86,10 +101,21 @@ def build_review_graph(llm=None, prompt_manager=None, checkpointer=None):
     graph.add_edge(["paper_understanding", "literature_rag"], "novelty")
     graph.add_edge("literature_rag", "citation")
 
-    # Reflection waits for exactly the 4 assessments it actually reads -- one
-    # list-form edge, not four separate add_edge calls (see note above).
+    # Adversarial Critic attacks only the 3 assessments it actually reads --
+    # methodology, citation, evidence_reproducibility, deliberately NOT
+    # novelty (out of scope; see module docstring for why this omission is
+    # safe rather than a race). One list-form edge, not three separate
+    # add_edge calls (see note above).
     graph.add_edge(
-        ["novelty", "methodology", "citation", "evidence_reproducibility"], "reflection"
+        ["methodology", "citation", "evidence_reproducibility"], "adversarial_critic"
+    )
+
+    # Reflection waits for the 4 assessments it reads PLUS the adversarial
+    # critique it now also folds into its flags/needs_revision decision --
+    # one list-form edge, not five separate add_edge calls (see note above).
+    graph.add_edge(
+        ["novelty", "methodology", "citation", "evidence_reproducibility", "adversarial_critic"],
+        "reflection",
     )
 
     # Bounded revision loop (see route_after_reflection / settings.reflection.max_revision_passes).
@@ -101,6 +127,12 @@ def build_review_graph(llm=None, prompt_manager=None, checkpointer=None):
     graph.add_edge("prepare_revision", "methodology")
     graph.add_edge("prepare_revision", "citation")
     graph.add_edge("prepare_revision", "evidence_reproducibility")
+    # No direct "prepare_revision" -> "adversarial_critic" edge on purpose:
+    # it re-fires automatically once methodology/citation/evidence_reproducibility
+    # complete their revision re-run, via its own list-join above. Adding a
+    # second, direct edge here would give it two independent triggers into
+    # the same node -- exactly the OR-vs-AND-join bug this file's docstring
+    # warns about.
 
     # figure_table never gets revised and has no other consumer. Its one-shot
     # output and the "proceed" decision are combined into a single real

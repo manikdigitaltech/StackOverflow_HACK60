@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Optional, TypedDict
 
 from core.schemas.agent_output_schemas import (
+    AdversarialCritique,
     CitationAssessment,
     EvidenceReproducibilityAssessment,
     FigureTableSummary,
@@ -42,6 +43,11 @@ class ReviewGraphState(TypedDict, total=False):
     evidence_assessment: EvidenceReproducibilityAssessment
 
     # --- Stage 3: self-reflection + bounded revision loop ---
+    # Runs in parallel with reflection, attacking only methodology/citation/
+    # evidence (not novelty -- out of scope by design). Feeds INTO reflection
+    # as an extra input (see nodes.py/build_graph.py), not a separate branch
+    # of the revision loop.
+    adversarial_critique: AdversarialCritique
     reflection_notes: ReflectionNotes
     revision_count: int
     # Set only on a revision pass; the 4 assessment agents fold this into
