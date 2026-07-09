@@ -67,11 +67,11 @@ Detailed docs for each area are at the repo root: `RAG_ARCHITECTURE.md`,
 | RAG — persistent literature corpus                          | ✅ Real, real ICLR-2017 data indexed (389 papers, train+dev) — see `PEERREAD_CORPUS_MODULE.md`               |
 | Figure/table vision analysis                                | ✅ Real — vision model pulled (`qwen2.5vl:7b`) and `VISION__ENABLED=true`, verified end-to-end on GPU        |
 | 9 review agents (incl. 2 novelty implementations)           | ✅ All real, tested individually and together                                                                |
-| LangGraph orchestration                                     | ✅ Built + verified (mocked topology test AND a real ~20min Ollama run) — **not yet wired into the live UI** |
-| Live SSE dashboard                                          | ✅ Real, working — shows placeholder cards for agents not yet wired into it                                  |
-| Human-in-the-loop approval                                  | ❌ Not started                                                                                               |
+| LangGraph orchestration                                     | ✅ Built + verified (mocked topology test, a real ~20min Ollama run, AND now live through the dashboard) — see `LANGGRAPH_ORCHESTRATION.md` / `UI_WORK.md` |
+| Live SSE dashboard                                          | ✅ Real, working — all 9 agents + Final Review/Human Approval views render real graph output, no placeholder cards left except `human_approval` (Phase 2) |
+| Human-in-the-loop approval                                  | ❌ Not started (view shows the real final review; Approve/Reject clicks are honestly inert, no persistence)  |
 | Review persistence (MySQL)                                  | ❌ Schema exists, nothing writes to it; MySQL isn't even running                                             |
-| **Evaluation harness (PeerRead test split, accuracy/F1/κ)** | ❌ **Not started — this is the graded core**                                                                 |
+| **Evaluation harness (PeerRead test split, accuracy/F1/κ)** | ✅ Built (`core/eval/peerread_harness.py`, `scripts/run_peerread_evaluation.py`) — see run results below     |
 
 ## 4. Branch history — what was merged, what wasn't, and why
 
@@ -134,23 +134,55 @@ assume anything about commit/push state from this document.
 
 ## 7. What's next (dependency order)
 
-1. **Wire the LangGraph orchestration into `server/pipeline.py`** — replace
-   the remaining placeholder "not yet implemented" cards in the live
-   dashboard with real graph-driven SSE events. Mechanical, not risky.
-2. **Human-in-the-loop + persistence** — LangGraph interrupt/resume before
-   final output; wire graph nodes to actually write to MySQL (needs MySQL
-   running — no local `docker-compose.yml` exists; create one or get it from
-   a teammate).
-3. **The evaluation harness (the graded core)** — load PeerRead's labeled
-   `test` split (`reviews/*.json`, has the `accepted` field — already present
-   at `data/peerread_raw/iclr_2017/test/`, held out of both corpora, see
-   `PEERREAD_CORPUS_MODULE.md`), run the full graph per test paper, map
-   `final_recommendation` to accept/reject, compute accuracy/F1/Cohen's κ
-   against ground truth. This is the one remaining big piece.
-4. **Data** — done for `iclr_2017`: `data/peerread_raw/` cloned (reviews only,
-   PDFs skipped), `core/rag/ingestion/build_corpus.py` run (389-paper literature
-   index) and `data/novelty_corpus/` populated with the same 389 real papers
-   (see `PEERREAD_CORPUS_MODULE.md`). Still open: the `acl_2017` venue (listed
+1. ~~**Wire the LangGraph orchestration into `server/pipeline.py`**~~ — **Done.**
+   `server/pipeline.py` streams the compiled graph node-by-node
+   (`stream_mode="updates"`) into real SSE events; the dashboard shows all 9
+   agents plus a live-rendered Final Review / Human Approval view instead of
+   placeholder cards. See `UI_WORK.md`.
+2. **Human-in-the-loop + persistence** — the one remaining big piece.
+   LangGraph interrupt/resume before final output; wire graph nodes to
+   actually write to MySQL (needs MySQL running — no local
+   `docker-compose.yml` exists; create one or get it from a teammate). The
+   Human Approval view already renders the real final review; its
+   Approve/Request Changes/Reject buttons are wired but honestly inert (no
+   backend to persist to yet).
+3. ~~**The evaluation harness (the graded core)**~~ — **Built.**
+   `core/eval/peerread_harness.py` + `scripts/run_peerread_evaluation.py`
+   load PeerRead's labeled `test` split (`data/peerread_raw/iclr_2017/test/`,
+   38 papers, held out of both corpora — see `PEERREAD_CORPUS_MODULE.md`),
+   parse each paper's real PDF with Docling, run it through the full graph,
+   map `final_recommendation` to accept/reject (`accept`/`weak_accept`→
+   accept; `borderline`/`weak_reject`/`reject`→reject), and score against
+   ground truth with accuracy/F1/Cohen's κ via scikit-learn. Results are
+   written to `output_results/peerread_eval.{jsonl,metrics.json}`
+   (gitignored — regenerate with the script above).
+
+   **Two real bugs the first full run surfaced, both fixed in
+   `core/config/prompts.yaml`:** (a) `methodology_agent` and
+   `evidence_reproducibility_agent`'s JSON-shape examples showed a
+   `poor/fair/good/excellent`-vocabulary value directly next to an
+   `adequate/weak/missing`-vocabulary field in the same example object —
+   the model kept bleeding "good" into the wrong field (32/38 runs failed
+   schema validation before the fix; 35/38 succeeded after, plus bumping
+   `invoke_for_json`'s retry cap 2→3). (b) `final_review_agent`'s shape
+   example showed `"final_recommendation": "borderline"` as a literal
+   example value — the model anchored on it and returned "borderline" for
+   **all 35** genuinely different papers (`f1`/`cohen_kappa` both exactly
+   0.0, `predicted_accept_rate` exactly 0.0 despite 34% of papers actually
+   being accepted — a dead giveaway of prompt-anchoring, not real review
+   variance). Fixed by replacing the literal example with a placeholder
+   plus an explicit decision rubric tied to the upstream agents' actual
+   ratings; verified on a 6-paper smoke test that recommendations now
+   genuinely vary (`weak_reject`/`weak_accept` mixed, no repeats). A full
+   clean 38-paper re-run with both fixes was in progress as this was
+   written — run it yourself and check `output_results/peerread_eval.metrics.json`
+   for current numbers; don't trust any number pasted here as still current,
+   per this file's own §5 rule.
+4. **Data** — done for `iclr_2017`: `data/peerread_raw/` cloned (reviews +
+   the 38 `test`-split PDFs; train/dev PDFs skipped, not needed),
+   `core/rag/ingestion/build_corpus.py` run (389-paper literature index) and
+   `data/novelty_corpus/` populated with the same 389 real papers (see
+   `PEERREAD_CORPUS_MODULE.md`). Still open: the `acl_2017` venue (listed
    in `IngestionSettings.peerread_venues` but never fetched — the graded core
    only needs ICLR-2017, so this was deliberately skipped).
 

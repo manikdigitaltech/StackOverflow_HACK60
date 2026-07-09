@@ -109,10 +109,10 @@ methodology_agent:
 
     You must respond with ONLY a JSON object, no other text, matching this
     exact shape:
-    {{"aspect_verdicts": [{{"aspect": "baseline_comparisons", "assessment": "adequate", "note": "string"}}], "missing_baselines": ["string", ...], "soundness_rating": "good", "reasoning": "string"}}
+    {{"aspect_verdicts": [{{"aspect": "baseline_comparisons", "assessment": "weak", "note": "string"}}], "missing_baselines": ["string", ...], "soundness_rating": "excellent", "reasoning": "string"}}
     (aspect must be exactly one of: "baseline_comparisons", "ablation_studies", "hyperparameter_justification", "experimental_setup_clarity", "statistical_rigor")
-    (assessment must be exactly one of: "adequate", "weak", "missing")
-    (soundness_rating must be exactly one of: "poor", "fair", "good", "excellent")
+    (each aspect_verdicts.assessment must be exactly one of: "adequate", "weak", "missing" -- NEVER "good", "poor", "fair", or "excellent", those belong only to soundness_rating below)
+    (soundness_rating must be exactly one of: "poor", "fair", "good", "excellent" -- NEVER "adequate", "weak", or "missing", those belong only to assessment above)
   user: |
     PAPER CONTENT (Method/Experiments sections prioritized):
     {paper_context}
@@ -204,11 +204,11 @@ evidence_reproducibility_agent:
 
     You must respond with ONLY a JSON object, no other text, matching this
     exact shape:
-    {{"claim_verdicts": [{{"claim": "string", "verdict": "supported", "note": "string"}}], "reproducibility_verdicts": [{{"aspect": "code_availability", "assessment": "adequate", "note": "string"}}], "overall_rating": "good", "reasoning": "string"}}
+    {{"claim_verdicts": [{{"claim": "string", "verdict": "supported", "note": "string"}}], "reproducibility_verdicts": [{{"aspect": "code_availability", "assessment": "weak", "note": "string"}}], "overall_rating": "excellent", "reasoning": "string"}}
     (claim verdict must be exactly one of: "supported", "unsupported", "partially_supported")
     (reproducibility aspect must be exactly one of: "code_availability", "hyperparameter_details", "dataset_availability", "training_details", "compute_requirements")
-    (reproducibility assessment must be exactly one of: "adequate", "weak", "missing")
-    (overall_rating must be exactly one of: "poor", "fair", "good", "excellent")
+    (each reproducibility_verdicts.assessment must be exactly one of: "adequate", "weak", "missing" -- NEVER "good", "poor", "fair", or "excellent", those belong only to overall_rating below)
+    (overall_rating must be exactly one of: "poor", "fair", "good", "excellent" -- NEVER "adequate", "weak", or "missing", those belong only to assessment above)
   user: |
     PAPER CONTENT:
     {paper_context}
@@ -337,9 +337,14 @@ final_review_agent:
 
     You must respond with ONLY a JSON object, no other text, matching this
     exact shape:
-    {{"paper_summary": "string", "strengths": ["string", ...], "weaknesses": ["string", ...], "questions_for_authors": ["string", ...], "novelty_analysis": "string", "citation_quality": "string", "reproducibility": "string", "evidence_mapping": "string", "missing_baselines": ["string", ...], "final_recommendation": "borderline", "confidence": "medium"}}
-    (final_recommendation must be exactly one of: "reject", "weak_reject", "borderline", "weak_accept", "accept")
-    (confidence must be exactly one of: "low", "medium", "high")
+    {{"paper_summary": "string", "strengths": ["string", ...], "weaknesses": ["string", ...], "questions_for_authors": ["string", ...], "novelty_analysis": "string", "citation_quality": "string", "reproducibility": "string", "evidence_mapping": "string", "missing_baselines": ["string", ...], "final_recommendation": "PICK_ONE_OF_THE_FIVE_BELOW", "confidence": "PICK_ONE_OF_THE_THREE_BELOW"}}
+    (final_recommendation must be exactly one of: "reject", "weak_reject", "borderline", "weak_accept", "accept" --
+    this is a REAL decision you must make from the specific assessments below, not a fixed value to copy. Weigh
+    the actual ratings you were given: if novelty is "high"/"medium" AND soundness/evidence are "good"/"excellent"
+    AND no major reflection flags exist, lean "accept"/"weak_accept"; if novelty is "low" OR soundness/evidence are
+    "poor" OR reflection raised major unresolved issues, lean "reject"/"weak_reject"; reserve "borderline" ONLY for
+    a genuine mixed case where strengths and weaknesses roughly balance -- it must NOT be your default choice.)
+    (confidence must be exactly one of: "low", "medium", "high" -- base this on Reflection's overall_confidence, not a fixed value)
   user: |
     === PAPER UNDERSTANDING ===
     {understanding_summary}
