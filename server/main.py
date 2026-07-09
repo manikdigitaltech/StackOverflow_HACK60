@@ -20,6 +20,7 @@ Then open: http://localhost:8000/
 from __future__ import annotations
 
 import json
+import threading
 import uuid
 from pathlib import Path
 from typing import Literal, Optional
@@ -27,7 +28,7 @@ from typing import Literal, Optional
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core.db.repositories.review_repository import ReviewRepository
 from core.db.session import get_session
@@ -57,6 +58,30 @@ app.mount("/figure_crops", StaticFiles(directory=str(FIGURE_CROPS_DIR)), name="f
 # what the user actually called their file).
 _UPLOAD_FILENAMES: dict[str, str] = {}
 
+# --- Resource limits (OWASP LLM10, Unbounded Consumption -- see
+# docs/OWASP_LLM_SECURITY.md). A review run monopolizes the local GPU for
+# many minutes, so cap how much can be requested at once.
+MAX_UPLOAD_BYTES = 30 * 1024 * 1024  # research-paper PDFs are single-digit MB
+MAX_CONCURRENT_REVIEWS = 2           # full-graph runs allowed at the same time
+
+_active_reviews = 0
+_reviews_lock = threading.Lock()
+
+
+def _acquire_review_slot() -> bool:
+    global _active_reviews
+    with _reviews_lock:
+        if _active_reviews >= MAX_CONCURRENT_REVIEWS:
+            return False
+        _active_reviews += 1
+        return True
+
+
+def _release_review_slot() -> None:
+    global _active_reviews
+    with _reviews_lock:
+        _active_reviews = max(0, _active_reviews - 1)
+
 
 @app.get("/")
 def index():
@@ -75,7 +100,9 @@ async def upload(file: UploadFile = File(...)):
 
     run_id = uuid.uuid4().hex[:12]
     pdf_path = UPLOAD_DIR / f"{run_id}.pdf"
-    contents = await file.read()
+    contents = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"PDF too large -- limit is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.")
     pdf_path.write_bytes(contents)
     _UPLOAD_FILENAMES[run_id] = file.filename
 
@@ -88,15 +115,25 @@ def stream(run_id: str):
     if not pdf_path.exists():
         raise HTTPException(404, f"No uploaded PDF found for run_id={run_id!r}. Upload first via /api/upload.")
 
+    if not _acquire_review_slot():
+        raise HTTPException(429, f"Too many reviews running (limit {MAX_CONCURRENT_REVIEWS}). Try again once one finishes.")
+
     def event_source():
-        for event in run_pipeline(run_id, str(pdf_path), uploaded_filename=_UPLOAD_FILENAMES.get(run_id)):
-            yield f"data: {json.dumps(event)}\n\n"
+        # The slot is held for the life of the stream; FastAPI closes the
+        # generator on client disconnect, so the finally always releases it.
+        try:
+            for event in run_pipeline(run_id, str(pdf_path), uploaded_filename=_UPLOAD_FILENAMES.get(run_id)):
+                yield f"data: {json.dumps(event)}\n\n"
+        finally:
+            _release_review_slot()
 
     return StreamingResponse(event_source(), media_type="text/event-stream")
 
 
 class RebuttalRequest(BaseModel):
-    rebuttal_text: str   # the authors' written response to the original review
+    # the authors' written response to the original review; length-capped so
+    # a single request can't flood the context window (OWASP LLM10)
+    rebuttal_text: str = Field(..., min_length=1, max_length=20_000)
 
 
 @app.post("/api/rebuttal/{run_id}")
@@ -105,7 +142,12 @@ def rebuttal(run_id: str, body: RebuttalRequest):
     rebuttal folded in, returning the revised recommendation, how it moved vs.
     the original, and a `rebuttal_run_id` to approve the revised verdict on via
     POST /api/approval/{rebuttal_run_id}."""
-    result = run_rebuttal_rereview(run_id, body.rebuttal_text)
+    if not _acquire_review_slot():
+        raise HTTPException(429, f"Too many reviews running (limit {MAX_CONCURRENT_REVIEWS}). Try again once one finishes.")
+    try:
+        result = run_rebuttal_rereview(run_id, body.rebuttal_text)
+    finally:
+        _release_review_slot()
     if "error" in result:
         raise HTTPException(409, result["error"])
     return result

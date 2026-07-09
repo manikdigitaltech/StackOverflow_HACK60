@@ -14,6 +14,10 @@ Think of it like a restaurant kitchen:
 All the code lives in [`core/utils/guardrails.py`](../core/utils/guardrails.py),
 with 10 unit tests in [`tests/unit/test_guardrails.py`](../tests/unit/test_guardrails.py).
 
+For how these defenses map onto the industry-standard **OWASP Top 10 for LLM
+Applications** checklist (including defenses that live outside this file, and
+what's still open), see [`OWASP_LLM_SECURITY.md`](OWASP_LLM_SECURITY.md).
+
 ---
 
 ## The guardrails, one by one

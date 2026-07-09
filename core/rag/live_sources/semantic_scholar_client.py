@@ -11,6 +11,7 @@ import logging
 from core.config.rag_settings import RAG_SETTINGS
 from core.config.settings import settings
 from core.rag.models import RetrievalResult
+from core.utils.guardrails import sanitize_pdf_text
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +50,10 @@ def search_semantic_scholar(
 
     results: list[RetrievalResult] = []
     for rank, hit in enumerate(hits):
-        title = (hit.get("title") or "").strip()
-        abstract = (hit.get("abstract") or "").strip()
+        # Live-source text bypasses the PDF parser (where sanitization normally
+        # runs) but still lands in agent prompts -- sanitize it here.
+        title, _ = sanitize_pdf_text((hit.get("title") or "").strip())
+        abstract, _ = sanitize_pdf_text((hit.get("abstract") or "").strip())
         if not title:
             continue
         results.append(RetrievalResult(
