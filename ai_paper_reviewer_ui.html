@@ -1486,6 +1486,43 @@
       color: var(--text-1);
     }
 
+    .sp-figure-thumb {
+      display: block;
+      max-width: 100%;
+      max-height: 260px;
+      width: auto;
+      object-fit: contain;
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      background: #050609;
+      margin-bottom: 8px;
+    }
+
+    .sp-table-wrap {
+      overflow-x: auto;
+      margin-bottom: 8px;
+    }
+
+    .sp-md-table {
+      border-collapse: collapse;
+      font-size: 11.5px;
+      width: 100%;
+    }
+
+    .sp-md-table th, .sp-md-table td {
+      border: 1px solid var(--glass-border);
+      padding: 5px 9px;
+      text-align: left;
+      color: var(--text-1);
+      white-space: nowrap;
+    }
+
+    .sp-md-table th {
+      color: var(--text-3);
+      font-weight: 600;
+      background: rgba(255,255,255,0.03);
+    }
+
     .sp-code {
       background: #050609;
       border: 1px solid var(--glass-border);
@@ -2103,6 +2140,7 @@
     const ICONS = {
       parse: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5M9 13h6M9 17h6"/></svg>',
       vision: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
+      formula: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4h4l-2 8 2 8H6M18 4h-4l2 8-2 8h4"/></svg>',
       rag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>',
       literature: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
       novelty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>',
@@ -2121,8 +2159,10 @@
     const CARDS = [
       { key: 'parse', label: 'PDF Parsing (Docling)', stageKeys: ['parse'], icon: ICONS.parse },
       { key: 'paper_understanding_agent', label: 'Paper Understanding Agent', stageKeys: ['paper_understanding_agent'], icon: ICONS.parse },
-      { key: 'vision', label: 'Figure & Table Vision Analysis (VLM)', stageKeys: ['vision'], icon: ICONS.vision },
+      { key: 'vision', label: 'Figure Extraction & Vision Analysis (VLM)', stageKeys: ['vision'], icon: ICONS.vision },
+      { key: 'formulas', label: 'Formula Extraction (LaTeX)', stageKeys: ['formulas'], icon: ICONS.formula },
       { key: 'figure_table_agent', label: 'Figure & Table Agent (Summary)', stageKeys: ['figure_table_agent'], icon: ICONS.evidence },
+      { key: 'visual_reference_agent', label: 'Visual Reference Agent (Figure/Table Usage)', stageKeys: ['visual_reference_agent'], icon: ICONS.citation },
       { key: 'rag', label: 'RAG Indexing (Paper Index)', stageKeys: ['chunk', 'paper_rag_build'], icon: ICONS.rag },
       { key: 'literature_rag', label: 'Literature RAG Agent', stageKeys: ['literature_rag'], icon: ICONS.literature },
       { key: 'novelty_agent', label: 'Novelty Agent (Embedding Similarity)', stageKeys: ['novelty_agent'], icon: ICONS.novelty },
@@ -2164,8 +2204,10 @@
       if (latest.status === 'awaiting_approval') return 'Drafted review parked -- approve, revise, or reject it in the Human Approval tab.';
       if (latest.status === 'done') {
         if (card.key === 'human_approval') return latest.message || 'Decision recorded.';
-        if (card.key === 'parse') return `Segmented into ${latest.section_names.length} section(s), ${latest.num_tables} table(s), ${latest.num_figures} figure(s).`;
-        if (card.key === 'vision') return `Described ${latest.num_analyzed} figure(s) with the local vision model.`;
+        if (card.key === 'parse') return `Segmented into ${latest.section_names.length} section(s), ${latest.num_tables} table(s), ${latest.num_figures} figure(s), ${latest.num_formulas ?? 0} formula(s).`;
+        if (card.key === 'vision') return `Cropped ${latest.num_cropped} figure(s)${latest.num_analyzed ? `, described ${latest.num_analyzed} with the local vision model` : ' (no vision model configured)'}.`;
+        if (card.key === 'formulas') return `Cropped ${latest.num_cropped} formula(s)${latest.num_recognized ? `, recognized ${latest.num_recognized} as LaTeX` : ' (LaTeX recognition off)'}.`;
+        if (card.key === 'visual_reference_agent') return `${latest.result.reference_verdicts.length} reference(s) checked -- ${latest.result.unresolved_mentions.length} unresolved. Overall: ${titleCase(latest.result.overall_quality)}.`;
         if (card.key === 'rag') {
           const chunkEv = liveEvents['chunk'], buildEv = liveEvents['paper_rag_build'];
           if (buildEv && buildEv.status === 'done') return `${buildEv.num_vectors} chunk(s) indexed (hybrid dense+BM25) -- ask it a question below.`;
@@ -2635,22 +2677,54 @@
       if (card.key === 'parse') {
         const e = liveEvents['parse'];
         if (!e || e.status !== 'done') return `<div class="sp-block"><p>${e ? e.message : 'Parsing...'}</p></div>`;
+        const tablesHtml = (e.tables || []).map(t => `
+        <div class="sp-block"><h5>${escapeHtml(t.table_id)}${t.caption ? ' -- ' + escapeHtml(t.caption) : ''}</h5>
+          ${renderMarkdownTable(t.markdown)}
+        </div>`).join('');
         return `
         <div class="sp-block"><h5>Title</h5><p>${escapeHtml(e.title)}</p></div>
         <div class="sp-block"><h5>Abstract (preview)</h5><p>${escapeHtml(e.abstract_preview)}...</p></div>
         <div class="sp-block"><h5>Sections</h5><p>${e.section_names.map(escapeHtml).join(', ')}</p></div>
-        <div class="sp-block"><h5>Structure</h5><p>${e.num_tables} table(s), ${e.num_figures} figure(s), ${e.num_references} reference(s).</p></div>`;
+        <div class="sp-block"><h5>Structure</h5><p>${e.num_tables} table(s), ${e.num_figures} figure(s), ${e.num_formulas ?? 0} formula(s), ${e.num_references} reference(s).</p></div>`
+        + tablesHtml;
       }
       if (card.key === 'vision') {
         const e = liveEvents['vision'];
         if (!e) return `<div class="sp-block"><p>Waiting on parse to finish.</p></div>`;
         if (e.status !== 'done') return `<div class="sp-block"><p>${escapeHtml(e.message || e.status)}</p></div>`;
-        if (!e.figures.length) return `<div class="sp-block"><p>No figures were analyzed.</p></div>`;
+        if (!e.figures.length) return `<div class="sp-block"><p>No figures were cropped.</p></div>`;
         return e.figures.map(f => `
         <div class="sp-block"><h5>${escapeHtml(f.figure_id)}</h5>
+          ${f.image_url ? `<img class="sp-figure-thumb" src="${escapeHtml(f.image_url)}" alt="${escapeHtml(f.figure_id)}" loading="lazy">` : ''}
           <p><i>Caption: ${escapeHtml(f.caption || '(none detected)')}</i></p>
-          <p>${escapeHtml(f.description)}</p>
+          ${f.description ? `<p>${escapeHtml(f.description)}</p>` : ''}
         </div>`).join('');
+      }
+      if (card.key === 'formulas') {
+        const e = liveEvents['formulas'];
+        if (!e) return `<div class="sp-block"><p>Waiting on parse to finish.</p></div>`;
+        if (e.status !== 'done') return `<div class="sp-block"><p>${escapeHtml(e.message || e.status)}</p></div>`;
+        if (!e.formulas.length) return `<div class="sp-block"><p>No formulas were cropped.</p></div>`;
+        return e.formulas.map(f => `
+        <div class="sp-block"><h5>${escapeHtml(f.formula_id)}</h5>
+          ${f.image_url ? `<img class="sp-figure-thumb" src="${escapeHtml(f.image_url)}" alt="${escapeHtml(f.formula_id)}" loading="lazy">` : ''}
+          ${f.text ? `<pre class="sp-code">${escapeHtml(f.text)}</pre>` : '<p><i>LaTeX recognition off -- FORMULA__ENABLED=false (region cropped only)</i></p>'}
+        </div>`).join('');
+      }
+      if (card.key === 'visual_reference_agent') {
+        const e = liveEvents['visual_reference_agent'];
+        if (!e || e.status !== 'done' || !e.result) return `<div class="sp-block"><p>${e ? escapeHtml(e.message || e.status) : 'Waiting...'}</p></div>`;
+        const r = e.result;
+        const verdicts = r.reference_verdicts.map(v => `
+        <div class="sp-block"><h5>${escapeHtml(v.mention)} -- ${v.verdict.toUpperCase()} <span style="opacity:.65">(${titleCase(v.purpose)})</span></h5>
+          <p>${escapeHtml(v.note || v.evidence)}</p>
+          ${v.evidence && v.note ? `<p><i>"${escapeHtml(v.evidence)}"</i></p>` : ''}
+        </div>`).join('');
+        const unresolved = r.unresolved_mentions.length
+          ? `<div class="sp-block"><h5>Unresolved Mentions</h5><p>${r.unresolved_mentions.map(escapeHtml).join(', ')} -- referenced in the text but no matching figure/table was extracted.</p></div>` : '';
+        return `<div class="sp-block"><h5>Overall Quality: ${titleCase(r.overall_quality)}</h5><p>${escapeHtml(r.summary)}</p></div>`
+          + verdicts + unresolved
+          || `<div class="sp-block"><p>No in-text figure/table references found.</p></div>`;
       }
       if (card.key === 'rag') {
         const chunkEv = liveEvents['chunk'], buildEv = liveEvents['paper_rag_build'];
@@ -2859,6 +2933,28 @@
 
     function titleCase(s) {
       return s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
+    }
+
+    // Renders a Docling-produced pipe-delimited markdown table (as returned
+    // verbatim by core/parsing/docling_parser.py's Table.markdown) as a real
+    // HTML table, so extracted table content shows up live instead of just
+    // a count. Falls back to preformatted text for anything that doesn't
+    // parse as a clean pipe table.
+    function renderMarkdownTable(markdown) {
+      if (!markdown) return '<p>(no table data)</p>';
+      const lines = markdown.trim().split('\n').filter(l => l.includes('|'));
+      if (lines.length < 1) return `<pre class="sp-code">${escapeHtml(markdown)}</pre>`;
+
+      const toCells = line => line.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      const isSeparator = line => /^[\s|:-]+$/.test(line) && line.includes('-');
+
+      const rows = lines.filter(l => !isSeparator(l)).map(toCells);
+      if (!rows.length) return `<pre class="sp-code">${escapeHtml(markdown)}</pre>`;
+
+      const [header, ...body] = rows;
+      const headHtml = `<tr>${header.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr>`;
+      const bodyHtml = body.map(r => `<tr>${r.map(c => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('');
+      return `<div class="sp-table-wrap"><table class="sp-md-table">${headHtml}${bodyHtml}</table></div>`;
     }
 
     // Categorical rating -> a display percentage. No numeric score is

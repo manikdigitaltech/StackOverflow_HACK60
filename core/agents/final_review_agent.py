@@ -1,12 +1,12 @@
 """
-Final Review Generator: the last of the 11 agents. Synthesizes ALL prior
-assessments (Paper Understanding, Figure & Table, Novelty, Methodology,
-Citation, Reference Usage, Evidence & Reproducibility, Reflection) into the
-structured review format the whole project was originally scoped to
-produce: Paper Summary, Strengths, Weaknesses, Questions for Authors,
-Novelty Analysis, Citation Quality, Reference Usage Quality,
-Reproducibility, Evidence Mapping, Missing Baselines, Final Recommendation,
-Confidence.
+Final Review Generator: the last of the 12 agents. Synthesizes ALL prior
+assessments (Paper Understanding, Figure & Table, Visual Reference, Novelty,
+Methodology, Citation, Reference Usage, Evidence & Reproducibility,
+Reflection) into the structured review format the whole project was
+originally scoped to produce: Paper Summary, Strengths, Weaknesses,
+Questions for Authors, Novelty Analysis, Citation Quality, Reference Usage
+Quality, Reproducibility, Evidence Mapping, Missing Baselines, Final
+Recommendation, Confidence.
 
 Deliberately does NOT re-read the paper's own text -- all paper-grounding
 work already happened in the upstream agents; this agent only synthesizes
@@ -24,11 +24,12 @@ from core.schemas.agent_output_schemas import (
     PaperUnderstandingOutput, FigureTableSummary, NoveltyAssessment,
     MethodologyAssessment, CitationAssessment, ReferenceUsageAssessment,
     EvidenceReproducibilityAssessment, ReflectionNotes, FinalReview,
+    VisualReferenceAssessment,
 )
 from core.agents.assessment_formatters import (
     format_understanding, format_figure_table, format_novelty,
     format_methodology, format_citation, format_reference_usage,
-    format_evidence_repro, format_reflection,
+    format_evidence_repro, format_reflection, format_visual_reference,
 )
 from core.llm.structured_output import invoke_for_json, StructuredOutputError
 
@@ -37,6 +38,7 @@ class FinalReviewAgent(BaseAgent):
     def run(self, inputs: Dict[str, Any]) -> FinalReview:
         understanding: PaperUnderstandingOutput = inputs["paper_understanding"]
         figure_table: FigureTableSummary = inputs["figure_table_summary"]
+        visual_reference: VisualReferenceAssessment = inputs["visual_reference_assessment"]
         novelty: NoveltyAssessment = inputs["novelty_assessment"]
         methodology: MethodologyAssessment = inputs["methodology_assessment"]
         citation: CitationAssessment = inputs["citation_assessment"]
@@ -48,6 +50,7 @@ class FinalReviewAgent(BaseAgent):
             "final_review_agent",
             understanding_summary=format_understanding(understanding),
             figure_table_summary=format_figure_table(figure_table),
+            visual_reference_summary=format_visual_reference(visual_reference),
             novelty_summary=format_novelty(novelty),
             methodology_summary=format_methodology(methodology),
             citation_summary=format_citation(citation),

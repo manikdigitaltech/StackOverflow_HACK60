@@ -26,6 +26,7 @@ from core.agents.novelty_agent import NoveltyAgent
 from core.agents.paper_understanding_agent import PaperUnderstandingAgent
 from core.agents.reference_usage_agent import ReferenceUsageAgent
 from core.agents.reflection_agent import ReflectionAgent
+from core.agents.visual_reference_agent import VisualReferenceAgent
 from core.config.settings import settings
 from core.graph.state import ReviewGraphState
 from core.schemas.agent_output_schemas import HumanApproval
@@ -74,6 +75,7 @@ class ReviewGraphNodes:
         self.methodology_agent = MethodologyAgent(llm, prompt_manager)
         self.citation_agent = CitationAgent(llm, prompt_manager)
         self.reference_usage_agent = ReferenceUsageAgent(llm, prompt_manager)
+        self.visual_reference_agent = VisualReferenceAgent(llm, prompt_manager)
         self.evidence_agent = EvidenceReproducibilityAgent(llm, prompt_manager)
         self.adversarial_critic_agent = AdversarialCriticAgent(llm, prompt_manager)
         self.reflection_agent = ReflectionAgent(llm, prompt_manager)
@@ -99,6 +101,14 @@ class ReviewGraphNodes:
         coverage), so it never needs a revision re-run."""
         result = self.reference_usage_agent.run({"parsed_paper": state["parsed_paper"]})
         return {"reference_usage_assessment": result}
+
+    def visual_reference(self, state: ReviewGraphState) -> dict:
+        """One-shot like figure_table/reference_usage -- verifies in-text
+        figure/table/chart/plot/diagram references (does the target exist,
+        does the surrounding prose meaningfully use it, what purpose does it
+        serve), so it never needs a revision re-run."""
+        result = self.visual_reference_agent.run({"parsed_paper": state["parsed_paper"]})
+        return {"visual_reference_assessment": result}
 
     # --- Stage 2: parallel assessments (re-run on a bounded revision pass) ---
 
@@ -207,6 +217,7 @@ class ReviewGraphNodes:
         result = self.final_review_agent.run({
             "paper_understanding": state["paper_understanding"],
             "figure_table_summary": state["figure_table_summary"],
+            "visual_reference_assessment": state["visual_reference_assessment"],
             "novelty_assessment": state["novelty_assessment"],
             "methodology_assessment": state["methodology_assessment"],
             "citation_assessment": state["citation_assessment"],

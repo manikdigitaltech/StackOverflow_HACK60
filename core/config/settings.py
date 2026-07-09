@@ -63,6 +63,18 @@ class VisionSettings(BaseModel):
     crop_dpi: int = 300             # passed to figure_cropper.crop_figure
 
 
+class FormulaSettings(BaseModel):
+    # Region detection (bbox/page) + cropping to PNG always run when Docling
+    # finds a "formula" layout region -- no extra model needed for that.
+    # `enabled` gates ONLY Docling's do_formula_enrichment (LaTeX/plaintext
+    # recognition via its CodeFormulaV2 model), which downloads that model on
+    # first use -- same off-by-default, real-code-path philosophy as
+    # VisionSettings.enabled for figure description.
+    enabled: bool = False
+    crop_dpi: int = 300               # passed to figure_cropper.crop_figure
+    max_formulas_per_paper: int = 30  # a dense math paper can have 100+ detected regions
+
+
 class EmbeddingSettings(BaseModel):
     provider: Literal["bge-large-en-v1.5", "e5-large"] = "bge-large-en-v1.5"
     dimension: int = 1024
@@ -102,6 +114,7 @@ class AppSettings(BaseSettings):
     checkpoint: CheckpointSettings = CheckpointSettings()
     llm: LLMSettings = LLMSettings()
     vision: VisionSettings = VisionSettings()
+    formula: FormulaSettings = FormulaSettings()
     embeddings: EmbeddingSettings = EmbeddingSettings()
     faiss: FAISSSettings = FAISSSettings()
     reflection: ReflectionSettings = ReflectionSettings()

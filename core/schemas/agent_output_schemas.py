@@ -36,12 +36,26 @@ class Figure(BaseModel):
     ocr_text: Optional[str] = None       # reserved for the vision-optional extension
 
 
+class Formula(BaseModel):
+    formula_id: str
+    page: Optional[int] = None
+    bbox: Optional[List[float]] = None   # [l, t, r, b] in Docling's native PDF coordinate space
+    image_path: Optional[str] = None     # populated by formula_analyzer.py's cropping step
+    # Recognized LaTeX/plaintext from Docling's do_formula_enrichment model --
+    # only populated when settings.formula.enabled is True (see
+    # docling_parser.py); the region itself (bbox/page/crop) is always
+    # detected and croppable regardless, since layout detection alone
+    # already classifies "formula" regions with no extra model needed.
+    text: Optional[str] = None
+
+
 class ParsedPaper(BaseModel):
     title: str
     abstract: str
     sections: List[Section]
     tables: List[Table]
     figures: List[Figure]
+    formulas: List[Formula] = []
     references: List[Reference]
     source_pdf_path: str
 
@@ -204,6 +218,28 @@ class FigureTableSummary(BaseModel):
     figure_summaries: List[FigureSummary]
     table_summaries: List[TableSummary]
     extraction_consistency_note: str = ""   # set deterministically by the agent, not by the LLM
+
+
+class VisualReferenceVerdict(BaseModel):
+    mention: str   # exact in-text reference text, e.g. "Figure 3" or "Table 2"
+    target_id: Optional[str] = None   # resolved figure_id/table_id when it exists, else None
+    exists: bool                       # was a matching figure/table actually extracted? -- set deterministically
+    purpose: Literal[
+        "result_support", "method_explanation", "comparison", "ablation", "other",
+    ]
+    verdict: Literal["supported", "weak", "misleading", "missing_target", "uncertain"]
+    evidence: str   # quote/paraphrase from the surrounding prose grounding this verdict
+    note: str       # brief justification, especially for weak/misleading/uncertain verdicts
+
+
+class VisualReferenceAssessment(BaseModel):
+    reference_verdicts: List[VisualReferenceVerdict]   # one entry per unique figure/table referenced in-text
+    # In-text mentions naming a figure/table number that was never extracted --
+    # set deterministically from the same check that produces "missing_target"
+    # verdicts above, not re-derived by the LLM.
+    unresolved_mentions: List[str] = []
+    overall_quality: Literal["poor", "fair", "good", "excellent"]
+    summary: str
 
 
 Recommendation = Literal["reject", "weak_reject", "borderline", "weak_accept", "accept"]

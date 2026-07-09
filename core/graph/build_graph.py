@@ -1,5 +1,5 @@
 """
-Assembles the review orchestration graph. Wires 11 agents into one bounded,
+Assembles the review orchestration graph. Wires 12 agents into one bounded,
 checkpointed LangGraph run, then gates the final recommendation behind a
 mandatory human-in-the-loop approval interrupt (DB persistence of the
 review + the approval decision is a separate concern -- see
@@ -86,6 +86,7 @@ def build_review_graph(llm=None, prompt_manager=None, checkpointer=None):
     graph.add_node("literature_rag", nodes.literature_rag)
     graph.add_node("figure_table", nodes.figure_table)
     graph.add_node("reference_usage", nodes.reference_usage)
+    graph.add_node("visual_reference", nodes.visual_reference)
     graph.add_node("novelty", nodes.novelty)
     graph.add_node("methodology", nodes.methodology)
     graph.add_node("citation", nodes.citation)
@@ -102,6 +103,7 @@ def build_review_graph(llm=None, prompt_manager=None, checkpointer=None):
     graph.add_edge(START, "literature_rag")
     graph.add_edge(START, "figure_table")
     graph.add_edge(START, "reference_usage")
+    graph.add_edge(START, "visual_reference")
     graph.add_edge(START, "methodology")
     graph.add_edge(START, "evidence_reproducibility")
 
@@ -149,15 +151,20 @@ def build_review_graph(llm=None, prompt_manager=None, checkpointer=None):
     # the same node -- exactly the OR-vs-AND-join bug this file's docstring
     # warns about.
 
-    # figure_table and reference_usage never get revised and have no other
-    # consumer (reference_usage checks how the paper uses its OWN
-    # bibliography -- the inverse of citation, which checks external
-    # literature coverage -- and stays out of the reflection/adversarial_critic
-    # loop by design, same as figure_table). Their one-shot outputs and the
-    # "proceed" decision are combined into a single real AND-join here (see
-    # ready_for_synthesis's docstring for why this indirection is necessary
-    # rather than separate edges into final_review).
-    graph.add_edge(["figure_table", "reference_usage", "ready_for_synthesis"], "final_review")
+    # figure_table, reference_usage, and visual_reference never get revised
+    # and have no other consumer (reference_usage checks how the paper uses
+    # its OWN bibliography -- the inverse of citation, which checks external
+    # literature coverage; visual_reference checks how the paper's prose uses
+    # its OWN figures/tables -- and both stay out of the
+    # reflection/adversarial_critic loop by design, same as figure_table).
+    # Their one-shot outputs and the "proceed" decision are combined into a
+    # single real AND-join here (see ready_for_synthesis's docstring for why
+    # this indirection is necessary rather than separate edges into
+    # final_review).
+    graph.add_edge(
+        ["figure_table", "reference_usage", "visual_reference", "ready_for_synthesis"],
+        "final_review",
+    )
 
     # Mandatory human-in-the-loop gate: the drafted recommendation is not
     # "issued" until a human resumes the interrupted run. interrupt() (in

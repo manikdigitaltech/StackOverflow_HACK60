@@ -26,6 +26,7 @@ from core.schemas.agent_output_schemas import (
     PaperUnderstandingOutput,
     ReferenceUsageAssessment,
     ReflectionNotes,
+    VisualReferenceAssessment,
 )
 
 
@@ -40,6 +41,10 @@ class ReviewGraphState(TypedDict, total=False):
     # One-shot like figure_table_summary -- never re-run on a revision pass,
     # so it isn't part of reflection/adversarial_critic's inputs either.
     reference_usage_assessment: ReferenceUsageAssessment
+    # Also one-shot: verifies in-text figure/table reference usage (purpose,
+    # existence, whether the surrounding prose supports its claim), same
+    # scope discipline as figure_table_summary/reference_usage_assessment.
+    visual_reference_assessment: VisualReferenceAssessment
 
     # --- Stage 2: parallel assessments ---
     novelty_assessment: NoveltyAssessment

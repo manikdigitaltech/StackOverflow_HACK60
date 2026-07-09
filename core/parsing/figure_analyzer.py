@@ -33,37 +33,43 @@ _CROPS_DIR = Path("data") / "figure_crops"
 
 
 def analyze_figures(parsed_paper: ParsedPaper) -> ParsedPaper:
-    """Crop + VLM-describe up to settings.vision.max_figures_per_paper figures.
+    """Crop every croppable figure to a PNG (image_path), then, if
+    settings.vision.enabled, also VLM-describe up to
+    settings.vision.max_figures_per_paper of them (ocr_text).
 
-    Returns a new ParsedPaper with `image_path`/`ocr_text` populated on the
-    figures that were processed. No-op (returns parsed_paper unchanged) when
-    settings.vision.enabled is False. Fails soft per-figure: a crop or VLM
-    error is logged and that one figure is left as-is -- one bad crop should
-    never block the rest of the paper's review.
+    Cropping itself is cheap (PyMuPDF, no LLM) and always runs when a figure
+    has a bbox/page -- it's what lets the UI show real figure thumbnails live
+    even with no vision model configured. Only the VLM description is gated
+    by settings.vision.enabled. Fails soft per-figure: a crop or VLM error is
+    logged and that one figure is left as-is -- one bad crop should never
+    block the rest of the paper's review.
     """
-    if not settings.vision.enabled:
+    if not parsed_paper.figures:
         return parsed_paper
 
-    llm = get_vision_llm()
-    prompt_manager = PromptManager()
+    vision_on = settings.vision.enabled
+    llm = get_vision_llm() if vision_on else None
+    prompt_manager = PromptManager() if vision_on else None
 
     updated_figures: list[Figure] = []
     analyzed = 0
     for figure in parsed_paper.figures:
-        can_process = figure.bbox is not None and figure.page is not None
-        if not can_process or analyzed >= settings.vision.max_figures_per_paper:
+        can_crop = figure.bbox is not None and figure.page is not None
+        if not can_crop:
             updated_figures.append(figure)
             continue
 
         try:
             image_path = _crop(parsed_paper.source_pdf_path, figure)
-            description = _describe(llm, prompt_manager, image_path, figure.caption)
+            description = None
+            if llm is not None and analyzed < settings.vision.max_figures_per_paper:
+                description = _describe(llm, prompt_manager, image_path, figure.caption)
+                analyzed += 1
             updated_figures.append(
                 figure.model_copy(update={"image_path": image_path, "ocr_text": description})
             )
-            analyzed += 1
         except Exception as exc:
-            logger.warning("Vision analysis failed for %s: %s", figure.figure_id, exc)
+            logger.warning("Figure crop/vision analysis failed for %s: %s", figure.figure_id, exc)
             updated_figures.append(figure)
 
     return parsed_paper.model_copy(update={"figures": updated_figures})

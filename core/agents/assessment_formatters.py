@@ -9,6 +9,7 @@ from core.schemas.agent_output_schemas import (
     PaperUnderstandingOutput, FigureTableSummary, NoveltyAssessment,
     MethodologyAssessment, CitationAssessment, ReferenceUsageAssessment,
     EvidenceReproducibilityAssessment, ReflectionNotes, AdversarialCritique,
+    VisualReferenceAssessment,
 )
 
 
@@ -27,6 +28,16 @@ def format_figure_table(ft: FigureTableSummary) -> str:
     if ft.extraction_consistency_note:
         lines.append(f"Consistency note: {ft.extraction_consistency_note}")
     return "\n".join(lines) if lines else "No figures or tables were extracted."
+
+
+def format_visual_reference(a: VisualReferenceAssessment) -> str:
+    lines = [f"Overall quality: {a.overall_quality}"]
+    for v in a.reference_verdicts:
+        lines.append(f"  - [{v.verdict}, {v.purpose}] {v.mention}: {v.note or v.evidence}")
+    if a.unresolved_mentions:
+        lines.append(f"Unresolved mentions (no matching target extracted): {', '.join(a.unresolved_mentions)}")
+    lines.append(f"Summary: {a.summary}")
+    return "\n".join(lines) if a.reference_verdicts or a.unresolved_mentions else a.summary
 
 
 def format_novelty(a: NoveltyAssessment) -> str:
