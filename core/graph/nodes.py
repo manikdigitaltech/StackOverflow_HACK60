@@ -107,6 +107,7 @@ class ReviewGraphNodes:
             "paper_understanding": state["paper_understanding"],
             "literature_context": state["literature_context"],
             "revision_feedback": state.get("revision_feedback"),
+            "rebuttal_text": state.get("rebuttal_text"),
         })
         return {"novelty_assessment": result}
 
@@ -114,6 +115,7 @@ class ReviewGraphNodes:
         result = self.methodology_agent.run({
             "parsed_paper": state["parsed_paper"],
             "revision_feedback": state.get("revision_feedback"),
+            "rebuttal_text": state.get("rebuttal_text"),
         })
         return {"methodology_assessment": result}
 
@@ -122,6 +124,7 @@ class ReviewGraphNodes:
             "parsed_paper": state["parsed_paper"],
             "literature_context": state["literature_context"],
             "revision_feedback": state.get("revision_feedback"),
+            "rebuttal_text": state.get("rebuttal_text"),
         })
         return {"citation_assessment": result}
 
@@ -129,6 +132,7 @@ class ReviewGraphNodes:
         result = self.evidence_agent.run({
             "parsed_paper": state["parsed_paper"],
             "revision_feedback": state.get("revision_feedback"),
+            "rebuttal_text": state.get("rebuttal_text"),
         })
         return {"evidence_assessment": result}
 

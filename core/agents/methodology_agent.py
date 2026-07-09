@@ -9,7 +9,7 @@ the paper.
 
 from typing import Any, Dict
 from core.agents.base_agent import BaseAgent, AgentExecutionError
-from core.agents.revision import revision_feedback_block
+from core.agents.revision import revision_feedback_block, rebuttal_feedback_block
 from core.schemas.agent_output_schemas import ParsedPaper, MethodologyAssessment
 from core.parsing.context_builder import build_paper_context
 from core.llm.structured_output import invoke_for_json, StructuredOutputError
@@ -27,6 +27,7 @@ class MethodologyAgent(BaseAgent):
         system, user = self._prompts.render(
             "methodology_agent", paper_context=paper_context,
             revision_feedback=revision_feedback_block(inputs),
+            rebuttal_feedback=rebuttal_feedback_block(inputs),
         )
 
         try:

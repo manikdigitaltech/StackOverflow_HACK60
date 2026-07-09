@@ -36,9 +36,16 @@ back into that file. Status verified against the actual codebase, not just docs.
   §7 item 3 predate it; the Critic was added directly in response to the
   harness over-predicting accept (85% predicted vs. 39% actual base rate),
   but whether it actually moves the numbers hasn't been checked yet.
-- [ ] **Rebuttal-aware re-review** (§8 bonus) — not built. Partial
-  foundation: the existing reflection/revision loop could plausibly be
-  repurposed to accept an author rebuttal as a new kind of feedback input.
+- [x] **Rebuttal-aware re-review** (§8 bonus) — done. A `rebuttal_feedback`
+  channel (parallel to the self-reflection `revision_feedback`) threads the
+  author rebuttal through the 4 assessment agents
+  (`core/agents/revision.py` + `prompts.yaml`); `core/graph/rebuttal.py`'s
+  `run_rebuttal_rereview()` re-runs the full graph seeded with the rebuttal —
+  so the revised verdict also passes the mandatory human-approval gate —
+  and `compare_recommendations()` reports the before/after shift. Exposed as
+  `POST /api/rebuttal/{run_id}` and verified by
+  `scripts/test_rebuttal_rereview.py` (rebuttal moves the verdict
+  weak_reject → weak_accept). See `docs/REBUTTAL_REREVIEW.md`.
 - [ ] **Wire HyDE/decompose query-shaping** (`core/rag/retrieval/
   query_helpers.py`) — exists but unwired; a smaller, separate follow-up
   from the live-source merge (query-shaping, not source-merging).
@@ -57,6 +64,7 @@ back into that file. Status verified against the actual codebase, not just docs.
 **Bottom line:** every requirement in the problem statement's architecture
 diagram — including the mandatory human-in-the-loop approval gate, real
 data in the literature corpus, and the graded evaluation harness — is
-built, tested, and measured. What's left is bonus-tier polish (rebuttal
-re-review, query-shaping) and re-validating whether the Adversarial Critic
-improved the eval numbers it was built to address.
+built, tested, and measured. Rebuttal-aware re-review (§8 bonus) is now done
+too. What's left is bonus-tier polish (query-shaping) and re-validating
+whether the Adversarial Critic improved the eval numbers it was built to
+address.

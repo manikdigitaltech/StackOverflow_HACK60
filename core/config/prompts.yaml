@@ -87,6 +87,7 @@ novelty_agent:
     3. Give an overall novelty_rating: "low", "medium", or "high".
     4. Explain your overall reasoning in 2-4 sentences.
     {revision_feedback}
+    {rebuttal_feedback}
     Respond with ONLY the JSON object described above.
   output_schema: NoveltyAssessment
 
@@ -133,6 +134,7 @@ methodology_agent:
     3. Give an overall soundness_rating: "poor", "fair", "good", or "excellent".
     4. Explain your reasoning in 2-4 sentences.
     {revision_feedback}
+    {rebuttal_feedback}
     Respond with ONLY the JSON object described above.
   output_schema: MethodologyAssessment
 
@@ -179,6 +181,7 @@ citation_agent:
        papers should lower this rating).
     3. Explain your reasoning in 2-4 sentences.
     {revision_feedback}
+    {rebuttal_feedback}
     Respond with ONLY the JSON object described above.
   output_schema: CitationAssessment
 
@@ -294,6 +297,7 @@ evidence_reproducibility_agent:
     3. Give an overall_rating: "poor", "fair", "good", or "excellent".
     4. Explain your reasoning in 2-4 sentences.
     {revision_feedback}
+    {rebuttal_feedback}
     Respond with ONLY the JSON object described above.
   output_schema: EvidenceReproducibilityAssessment
 
