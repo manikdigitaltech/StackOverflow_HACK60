@@ -18,6 +18,8 @@ import typing
 from typing import Any, Dict, Literal, Optional, Tuple, Type, TypeVar
 from pydantic import BaseModel, ValidationError
 
+from core.utils.guardrails import verify_output_safety
+
 T = TypeVar("T", bound=BaseModel)
 
 logger = logging.getLogger(__name__)
@@ -119,6 +121,27 @@ def invoke_for_json(llm, system: str, user: str, output_model: Type[T], max_atte
     for attempt in range(1, max_attempts + 1):
         response = llm.invoke(messages)
         raw_text = response.content
+
+        # Output guardrail: a syntactically valid response can still be a
+        # hijacked one -- e.g. the model was steered into echoing our own
+        # system prompt back instead of doing the review. verify_output_safety
+        # only flags a *non-empty* leak; an empty response is a normal failure
+        # handled by the JSON path below, so don't mislabel it as a breach.
+        if raw_text and not verify_output_safety(raw_text):
+            last_error = StructuredOutputError(
+                "Output guardrail tripped: the LLM response looked like a leaked "
+                "system prompt rather than a review answer (see "
+                "core/utils/guardrails.verify_output_safety).\n"
+                f"Raw response:\n{raw_text}"
+            )
+            if attempt < max_attempts:
+                messages = messages + [
+                    ("ai", raw_text),
+                    ("human", "That response leaked internal prompt text instead of "
+                              "answering. Reply again with ONLY the requested JSON object."),
+                ]
+            continue
+
         cleaned = _strip_code_fences(raw_text)
 
         try:
