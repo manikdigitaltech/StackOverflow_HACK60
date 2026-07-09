@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 # how well the paper uses its own bibliography), even though -- like
 # figure_table -- it's a one-shot node outside the revision loop.
 _ASSESSMENT_NODES = {
-    "novelty", "methodology", "citation", "reference_usage",
+    "novelty", "methodology", "citation", "reference_usage", "visual_reference",
     "evidence_reproducibility", "final_review",
 }
 
@@ -57,6 +57,7 @@ _GRAPH_NODE_TO_STAGE = {
     "paper_understanding": "paper_understanding_agent",
     "literature_rag": "literature_rag",
     "figure_table": "figure_table_agent",
+    "visual_reference": "visual_reference_agent",
     "novelty": "novelty_llm_agent",
     "methodology": "methodology_agent",
     "citation": "citation_agent",
@@ -75,6 +76,15 @@ _RUNS: Dict[str, Dict[str, Any]] = {}
 
 def _event(stage: str, status: str, **detail) -> Dict[str, Any]:
     return {"stage": stage, "status": status, "ts": time.time(), **detail}
+
+
+def _figure_image_url(image_path: Optional[str]) -> Optional[str]:
+    """core/parsing/figure_cropper.py writes crops under data/figure_crops/,
+    served statically at /figure_crops (see server/main.py's StaticFiles
+    mount) -- only the basename is needed regardless of cwd."""
+    if not image_path:
+        return None
+    return f"/figure_crops/{Path(image_path).name}"
 
 
 # --- MySQL persistence: best-effort, never fatal to the live SSE pipeline ---
@@ -155,34 +165,81 @@ def run_pipeline(run_id: str, pdf_path: str, uploaded_filename: Optional[str] = 
             section_names=[s.name for s in parsed_paper.sections],
             num_tables=len(parsed_paper.tables),
             num_figures=len(parsed_paper.figures),
+            num_formulas=len(parsed_paper.formulas),
             num_references=len(parsed_paper.references),
+            # Real extracted table content, not just a count -- lets the UI
+            # render actual tables live instead of waiting on a later agent.
+            tables=[
+                {"table_id": t.table_id, "caption": t.caption, "markdown": t.markdown[:2000]}
+                for t in parsed_paper.tables
+            ],
         )
     except Exception as exc:
         yield _event("parse", "error", message=str(exc), trace=traceback.format_exc(limit=3))
         _db_update_status(reviewed_paper_id, ReviewedPaperStatus.failed)
         return  # nothing downstream can run without a parsed paper
 
-    # --- Stage: figure/table vision analysis ---
-    if not settings.vision.enabled:
-        yield _event("vision", "skipped", message="VISION__ENABLED is false -- no local vision model configured.")
-    elif not parsed_paper.figures:
+    # --- Stage: figure cropping + (if enabled) VLM description ---
+    # Cropping always runs when there are figures (cheap, no LLM) so the UI
+    # can show real figure thumbnails even with no vision model configured;
+    # only the text description is gated by settings.vision.enabled.
+    if not parsed_paper.figures:
         yield _event("vision", "skipped", message="No figures detected in this PDF.")
     else:
-        yield _event("vision", "running", message=f"Cropping + describing up to {settings.vision.max_figures_per_paper} figure(s)...")
+        vlm_note = "" if settings.vision.enabled else " (VLM description off -- cropping only)"
+        yield _event("vision", "running", message=f"Cropping figure(s){vlm_note}...")
         try:
             from core.parsing.figure_analyzer import analyze_figures
 
             t0 = time.time()
             parsed_paper = analyze_figures(parsed_paper)
             _RUNS[run_id]["parsed_paper"] = parsed_paper
-            analyzed = [f for f in parsed_paper.figures if f.ocr_text]
+            cropped = [f for f in parsed_paper.figures if f.image_path]
+            described = [f for f in cropped if f.ocr_text]
             yield _event(
                 "vision", "done", elapsed_s=round(time.time() - t0, 2),
-                num_analyzed=len(analyzed),
-                figures=[{"figure_id": f.figure_id, "caption": f.caption, "description": f.ocr_text} for f in analyzed],
+                num_cropped=len(cropped), num_analyzed=len(described),
+                figures=[
+                    {
+                        "figure_id": f.figure_id,
+                        "caption": f.caption,
+                        "description": f.ocr_text,
+                        "image_url": _figure_image_url(f.image_path),
+                    }
+                    for f in cropped
+                ],
             )
         except Exception as exc:
             yield _event("vision", "error", message=str(exc), trace=traceback.format_exc(limit=3))
+
+    # --- Stage: formula cropping (+ LaTeX recognition, if enabled during parse) ---
+    # Region detection (bbox/page) already happened for free during the parse
+    # stage (Docling's layout model, no extra model needed) -- cropping to a
+    # PNG is the only thing left to do here, always, regardless of whether
+    # settings.formula.enabled turned on LaTeX/plaintext recognition.
+    if not parsed_paper.formulas:
+        yield _event("formulas", "skipped", message="No formulas detected in this PDF.")
+    else:
+        recog_note = "" if settings.formula.enabled else " (LaTeX recognition off -- cropping only)"
+        yield _event("formulas", "running", message=f"Cropping {len(parsed_paper.formulas)} formula region(s){recog_note}...")
+        try:
+            from core.parsing.formula_analyzer import crop_formulas
+
+            t0 = time.time()
+            parsed_paper = crop_formulas(parsed_paper)
+            _RUNS[run_id]["parsed_paper"] = parsed_paper
+            cropped = [f for f in parsed_paper.formulas if f.image_path]
+            recognized = [f for f in cropped if f.text]
+            yield _event(
+                "formulas", "done", elapsed_s=round(time.time() - t0, 2),
+                num_cropped=len(cropped), num_recognized=len(recognized),
+                formulas=[
+                    {"formula_id": f.formula_id, "text": f.text, "image_url": _figure_image_url(f.image_path)}
+                    for f in cropped
+                ],
+            )
+        except Exception as exc:
+            yield _event("formulas", "error", message=str(exc), trace=traceback.format_exc(limit=3))
 
     # --- Stage: RAG chunking (builds Index A input) ---
     yield _event("chunk", "running", message="Section-aware chunking for the paper's own RAG index (Index A)...")
@@ -285,6 +342,9 @@ def _summary_message(node_name: str, value: Any) -> str:
         return f"Retrieved {len(value.matches)} literature match(es)."
     if node_name == "figure_table":
         return f"{len(value.figure_summaries)} figure(s), {len(value.table_summaries)} table(s) summarized."
+    if node_name == "visual_reference":
+        return (f"{len(value.reference_verdicts)} reference verdict(s), "
+                f"{len(value.unresolved_mentions)} unresolved mention(s). Overall: {value.overall_quality}.")
     if node_name == "novelty":
         return f"Novelty rating: {value.novelty_rating}."
     if node_name == "methodology":
@@ -320,7 +380,7 @@ def _run_review_graph(run_id: str, parsed_paper: ParsedPaper, reviewed_paper_id:
     # only on completion, so the UI shows the parallel fan-out instead of
     # cards jumping straight to done.
     for node in ("paper_understanding", "literature_rag", "figure_table", "reference_usage",
-                 "methodology", "evidence_reproducibility"):
+                 "visual_reference", "methodology", "evidence_reproducibility"):
         yield _event(_GRAPH_NODE_TO_STAGE[node], "running", message="Running...")
 
     try:

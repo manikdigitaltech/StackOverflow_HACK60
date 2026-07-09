@@ -26,6 +26,7 @@ from typing import Literal, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from core.db.repositories.review_repository import ReviewRepository
@@ -41,8 +42,15 @@ from server.pipeline import (
 REPO_ROOT = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = REPO_ROOT / "data" / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+FIGURE_CROPS_DIR = REPO_ROOT / "data" / "figure_crops"
+FIGURE_CROPS_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="AI Paper Reviewer -- pipeline demo server")
+
+# Serves the PNG crops core/parsing/figure_cropper.py writes, so the live UI
+# can render real figure thumbnails (not just captions/descriptions) as soon
+# as the "vision" stage event reports their image_url.
+app.mount("/figure_crops", StaticFiles(directory=str(FIGURE_CROPS_DIR)), name="figure_crops")
 
 # run_id -> original uploaded filename (the saved PDF itself is just
 # "{run_id}.pdf" -- this is only needed so the reviewed_papers row records

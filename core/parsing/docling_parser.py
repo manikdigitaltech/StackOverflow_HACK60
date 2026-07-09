@@ -2,10 +2,20 @@
 Docling-based PDF parser: layout analysis -> TableFormer -> OCR-if-needed,
 producing a ParsedPaper.
 
-Note: this module does NOT extract figure images. It only captures each
-figure's bounding box, page number, and caption reference. Actual pixel
-extraction is figure_cropper.py's job (PyMuPDF) — kept separate so this
-module stays focused on structure/understanding, not image I/O.
+Note: this module does NOT extract figure/formula images. It only captures
+each figure/formula's bounding box, page number (and, for figures, caption
+reference). Actual pixel extraction is figure_cropper.py's job (PyMuPDF) --
+kept separate so this module stays focused on structure/understanding, not
+image I/O.
+
+Formula regions are detected by Docling's base layout model with no extra
+model needed (DocItemLabel.FORMULA is just another layout class, like
+"table" or "picture"), so bbox/page are always populated. The recognized
+LaTeX/plaintext (FormulaItem.text) is only filled in when
+settings.formula.enabled turns on Docling's do_formula_enrichment, which
+downloads and runs its CodeFormulaV2 model on first use -- same
+off-by-default, real-code-path philosophy as VISION__ENABLED for figure
+description.
 """
 
 import sys
@@ -13,11 +23,13 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 
 import fitz  # PyMuPDF -- used here only for a cheap page-count check
-from docling.document_converter import DocumentConverter
-from docling_core.types.doc import TextItem, TableItem, PictureItem
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling_core.types.doc import TextItem, TableItem, PictureItem, FormulaItem
 
 from core.config.settings import settings
-from core.schemas.agent_output_schemas import ParsedPaper, Table, Figure
+from core.schemas.agent_output_schemas import ParsedPaper, Table, Figure, Formula
 from core.parsing.section_segmenter import segment_sections
 from core.parsing.reference_extractor import extract_references
 from core.utils.guardrails import sanitize_pdf_text
@@ -25,7 +37,10 @@ from core.utils.guardrails import sanitize_pdf_text
 
 class DoclingParser:
     def __init__(self):
-        self._converter = DocumentConverter()
+        pipeline_options = PdfPipelineOptions(do_formula_enrichment=settings.formula.enabled)
+        self._converter = DocumentConverter(
+            format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
+        )
 
     def parse(self, pdf_path: str) -> ParsedPaper:
         pdf_path = str(pdf_path)
@@ -52,9 +67,16 @@ class DoclingParser:
         doc = result.document
 
         # --- Flatten the reading-order stream of text items ---
+        # FormulaItem is a TextItem subclass, but is collected separately
+        # below (like tables/pictures) rather than folded into section
+        # prose -- an equation's raw/LaTeX text reads as noise in prose
+        # context, and downstream agents don't need it there.
         text_items: List[Tuple[str, str, Optional[int]]] = []
+        formula_items: List[FormulaItem] = []
         for item, _level in doc.iterate_items():
-            if isinstance(item, TextItem):
+            if isinstance(item, FormulaItem):
+                formula_items.append(item)
+            elif isinstance(item, TextItem):
                 page_no = item.prov[0].page_no if getattr(item, "prov", None) else None
                 text_items.append((getattr(item, "label", "text"), item.text, page_no))
 
@@ -84,6 +106,18 @@ class DoclingParser:
                 caption=self._resolve_caption(picture_item, doc),
             ))
 
+        # --- Formulas (bbox + page always; recognized text only if enabled) ---
+        formulas: List[Formula] = []
+        for i, formula_item in enumerate(formula_items):
+            page_no = formula_item.prov[0].page_no if getattr(formula_item, "prov", None) else None
+            bbox = formula_item.prov[0].bbox if getattr(formula_item, "prov", None) else None
+            formulas.append(Formula(
+                formula_id=f"formula_{i + 1}",
+                page=page_no,
+                bbox=self._bbox_to_list(bbox),
+                text=formula_item.text or None,
+            ))
+
         references = extract_references(text_items)
 
         parsed_paper = ParsedPaper(
@@ -92,6 +126,7 @@ class DoclingParser:
             sections=sections,
             tables=tables,
             figures=figures,
+            formulas=formulas,
             references=references,
             source_pdf_path=pdf_path,
         )
@@ -124,6 +159,11 @@ class DoclingParser:
         for figure in paper.figures:
             if figure.caption:
                 figure.caption, triggered = sanitize_pdf_text(figure.caption)
+                any_triggered = any_triggered or triggered
+
+        for formula in paper.formulas:
+            if formula.text:
+                formula.text, triggered = sanitize_pdf_text(formula.text)
                 any_triggered = any_triggered or triggered
 
         for reference in paper.references:
@@ -191,4 +231,5 @@ if __name__ == "__main__":
     print(f"Sections ({len(parsed.sections)}): {[s.name for s in parsed.sections]}")
     print(f"Tables: {len(parsed.tables)}")
     print(f"Figures: {len(parsed.figures)}")
+    print(f"Formulas: {len(parsed.formulas)}")
     print(f"References: {len(parsed.references)}")

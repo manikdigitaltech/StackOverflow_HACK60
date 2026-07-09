@@ -24,6 +24,7 @@ from core.schemas.agent_output_schemas import (
     ReferenceUsageAssessment, ReferenceUsageVerdict,
     EvidenceReproducibilityAssessment, ClaimEvidenceVerdict, ReproducibilityAspectVerdict,
     FigureTableSummary, FigureSummary, TableSummary,
+    VisualReferenceAssessment, VisualReferenceVerdict,
     ReflectionNotes, ReflectionFlag,
 )
 
@@ -154,6 +155,22 @@ figure_table = FigureTableSummary(
     extraction_consistency_note="No figure/table reference mismatches detected.",
 )
 
+visual_reference = VisualReferenceAssessment(
+    reference_verdicts=[
+        VisualReferenceVerdict(mention="Figure 2", target_id="figure_2", exists=True,
+                                purpose="method_explanation", verdict="supported",
+                                evidence="Figure 2 illustrates the shared low-rank channel bases and token-conditional router.",
+                                note="Prose walks through each architectural component shown in the figure."),
+        VisualReferenceVerdict(mention="Table 2", target_id="table_2", exists=True,
+                                purpose="ablation", verdict="supported",
+                                evidence="Table 2 reports the ablation of the router and online error tracking.",
+                                note="Text directly cites the ablation numbers from the table."),
+    ],
+    unresolved_mentions=[],
+    overall_quality="good",
+    summary="The paper's prose meaningfully engages with the figures/tables it references, with no dangling mentions.",
+)
+
 reflection = ReflectionNotes(
     flags=[
         ReflectionFlag(
@@ -181,6 +198,7 @@ result = agent.run({
     "reference_usage_assessment": reference_usage,
     "evidence_assessment": evidence,
     "figure_table_summary": figure_table,
+    "visual_reference_assessment": visual_reference,
     "reflection_notes": reflection,
 })
 

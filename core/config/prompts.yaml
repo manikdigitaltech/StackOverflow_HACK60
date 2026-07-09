@@ -492,6 +492,61 @@ figure_table_agent:
     Respond with ONLY the JSON object described above.
   output_schema: FigureTableSummary
 
+visual_reference_agent:
+  version: 1
+  system: |
+    You are a reviewer checking how a paper's PROSE actually uses its own
+    figures and tables -- not what the figures/tables show in isolation.
+    You will be given, for each figure/table that is genuinely referenced by
+    number in the text, one or more short excerpts of the surrounding prose
+    where that reference appears, plus the actual caption of the target
+    being referenced.
+
+    For each target, decide:
+    - purpose: what role this reference plays where it's invoked --
+      "result_support" (backs a result/claim with data), "method_explanation"
+      (explains part of the approach), "comparison" (compares
+      methods/conditions/baselines), "ablation" (an ablation/analysis
+      figure/table), or "other".
+    - verdict: "supported" (the surrounding text meaningfully engages with
+      the target and the claim being made matches what the caption
+      describes), "weak" (the reference is a passing mention that doesn't
+      really explain or use the visual), "misleading" (the surrounding text
+      claims something the referenced caption does not support), or
+      "uncertain" (not enough information in the excerpt to judge).
+    - evidence: a short quote or close paraphrase from the given excerpt(s)
+      that grounds your verdict.
+    - note: one sentence of justification, required whenever verdict is not
+      "supported".
+
+    Do not invent claims not present in the excerpts. Do not judge the
+    visual's own quality or design -- only whether the text around it uses
+    it appropriately.
+
+    You must respond with ONLY a JSON object, no other text, matching this
+    exact shape:
+    {{"reference_verdicts": [{{"mention": "string", "target_id": "string", "exists": true, "purpose": "result_support", "verdict": "supported", "evidence": "string", "note": "string"}}], "overall_quality": "good", "summary": "string"}}
+    (every entry's "exists" must be true and "target_id" must exactly match
+    one of the bracketed ids given below -- you are only shown targets that
+    were confirmed to exist, so never emit "missing_target" here.)
+  user: |
+    IN-TEXT REFERENCES (grouped by target, with surrounding prose excerpts):
+    {targets}
+
+    EXTRACTED FIGURES/TABLES (captions):
+    {extracted_visuals}
+
+    Task: for every target listed under IN-TEXT REFERENCES above, produce
+    exactly one verdict entry -- classify its purpose, judge whether the
+    surrounding prose meaningfully and accurately uses it, and ground that
+    judgment in a quoted/paraphrased excerpt. Then set overall_quality
+    ("poor"/"fair"/"good"/"excellent") based on how many targets are
+    "supported" vs. "weak"/"misleading"/"uncertain", and write a 1-2 sentence
+    summary.
+
+    Respond with ONLY the JSON object described above.
+  output_schema: VisualReferenceAssessment
+
 final_review_agent:
   version: 1
   system: |
@@ -551,6 +606,9 @@ final_review_agent:
 
     === FIGURE & TABLE SUMMARY ===
     {figure_table_summary}
+
+    === VISUAL REFERENCE ASSESSMENT (how the prose uses its figures/tables) ===
+    {visual_reference_summary}
 
     === REFLECTION (META-REVIEW CAVEATS) ===
     {reflection_summary}
