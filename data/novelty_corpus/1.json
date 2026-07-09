@@ -1,0 +1,1 @@
+{"title": "Low-Rank KV Cache Compression", "abstract": "We compress the KV cache using low-rank factorization shared across layers.", "sections": [{"heading": "Method", "text": "Factorize KV matrices into shared low-rank components."}], "references": ["Devlin et al. BERT"], "year": 2024}

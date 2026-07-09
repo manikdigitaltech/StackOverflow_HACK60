@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Paper Reviewer — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0b0c14;
+    --panel: #12131e;
+    --panel-2: #171827;
+    --border: rgba(255,255,255,0.07);
+    --purple: #8b5cf6;
+    --purple-soft: #a78bfa;
+    --blue: #4c82fb;
+    --grad: linear-gradient(135deg, #8b5cf6, #4c82fb);
+    --text-1: #f1f2f8;
+    --text-2: #9096b3;
+    --text-3: #5b6180;
+    --green: #34d399;
+    --orange: #fbbf3f;
+    --red: #fb7185;
+    --radius: 14px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background: var(--bg); color: var(--text-1);
+    font-family:'Inter',sans-serif; font-size:13px;
+    display:flex; min-height:100vh;
+  }
+  h1,h2,h3,.disp{ font-family:'Space Grotesk',sans-serif; }
+  ::-webkit-scrollbar{ width:6px; height:6px; }
+  ::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.12); border-radius:4px; }
+
+  /* ---------------- SIDEBAR ---------------- */
+  .sidebar{
+    width: 216px; flex-shrink:0; background: var(--panel);
+    border-right:1px solid var(--border); padding:20px 14px;
+    display:flex; flex-direction:column; gap:22px; position:sticky; top:0; height:100vh;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; padding:2px 6px; }
+  .brand-mark{ width:30px; height:30px; border-radius:9px; background:var(--grad); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .brand-mark svg{ width:16px; height:16px; }
+  .brand-name{ font-weight:600; font-size:13.5px; }
+  .nav{ display:flex; flex-direction:column; gap:2px; }
+  .nav-item{ display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:9px; color:var(--text-2); font-size:12.5px; font-weight:500; cursor:pointer; }
+  .nav-item svg{ width:15px; height:15px; opacity:.85; flex-shrink:0; }
+  .nav-item:hover{ background:rgba(255,255,255,0.04); color:var(--text-1); }
+  .nav-item.active{ background:rgba(139,92,246,0.14); color:#fff; border:1px solid rgba(139,92,246,0.3); }
+  .sidebar-bottom{ margin-top:auto; display:flex; flex-direction:column; gap:12px; }
+  .sys-status{ background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:10px 12px; font-size:11px; color:var(--text-2); }
+  .sys-status .dot{ width:6px; height:6px; border-radius:50%; background:var(--green); display:inline-block; margin-right:6px; box-shadow:0 0 6px var(--green); }
+  .user-row{ display:flex; align-items:center; gap:9px; padding:6px; }
+  .user-avatar{ width:32px; height:32px; border-radius:9px; background:var(--grad); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:12px; }
+  .user-name{ font-size:12px; font-weight:600; }
+  .user-role{ font-size:10.5px; color:var(--text-3); }
+
+  /* ---------------- MAIN GRID ---------------- */
+  main{ flex:1; padding:20px 22px 40px; min-width:0; }
+  .grid{ display:grid; grid-template-columns: repeat(12, 1fr); gap:16px; }
+
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:18px; min-width:0; }
+  .card-title-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .card-title{ display:flex; align-items:center; gap:9px; font-size:14px; font-weight:600; }
+  .num-badge{ width:20px; height:20px; border-radius:50%; background:rgba(139,92,246,0.16); border:1px solid rgba(139,92,246,0.4); color:var(--purple-soft); font-size:10.5px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+
+  /* buttons */
+  .btn{ border:none; border-radius:9px; font-weight:600; font-size:12px; cursor:pointer; padding:9px 14px; display:inline-flex; align-items:center; gap:7px; }
+  .btn-grad{ background:var(--grad); color:#fff; }
+  .btn-ghost{ background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text-1); }
+  .btn svg{ width:13px; height:13px; }
+  .btn-block{ width:100%; justify-content:center; }
+
+  /* pills */
+  .pill{ font-size:10.5px; font-weight:600; padding:3px 9px; border-radius:20px; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+  .pill::before{ content:''; width:5px; height:5px; border-radius:50%; }
+  .pill-green{ background:rgba(52,211,153,0.12); color:var(--green); } .pill-green::before{ background:var(--green); }
+  .pill-blue{ background:rgba(76,130,251,0.14); color:#8fb3ff; } .pill-blue::before{ background:#8fb3ff; }
+  .pill-orange{ background:rgba(251,191,63,0.12); color:var(--orange); } .pill-orange::before{ background:var(--orange); }
+  .pill-red{ background:rgba(251,113,133,0.12); color:var(--red); } .pill-red::before{ background:var(--red); }
+  .pill-purple{ background:rgba(139,92,246,0.14); color:var(--purple-soft); } .pill-purple::before{ background:var(--purple-soft); }
+
+  /* ============ ROW 1 ============ */
+  .col-dashboard{ grid-column: span 5; display:flex; flex-direction:column; gap:16px; }
+  .greeting-row{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .greeting h2{ font-size:19px; font-weight:600; }
+  .greeting p{ font-size:12px; color:var(--text-2); margin-top:3px; }
+
+  .stat-grid{ display:grid; grid-template-columns: repeat(5,1fr); gap:10px; }
+  .stat-card{ background:var(--panel-2); border:1px solid var(--border); border-radius:11px; padding:11px 12px; }
+  .stat-label{ font-size:10px; color:var(--text-3); text-transform:uppercase; letter-spacing:.4px; margin-bottom:6px; }
+  .stat-val{ font-size:18px; font-weight:700; font-family:'Space Grotesk',sans-serif; }
+  .stat-delta{ font-size:10px; margin-top:4px; display:flex; align-items:center; gap:3px; }
+  .up{ color:var(--green); } .down{ color:var(--red); }
+
+  .chart-row{ display:grid; grid-template-columns: 1.4fr 1fr; gap:14px; }
+  .chart-card{ background:var(--panel-2); border:1px solid var(--border); border-radius:11px; padding:14px; }
+  .chart-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:12px; font-weight:600; }
+  .seg-dropdown{ font-size:10.5px; color:var(--text-2); background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:7px; padding:4px 9px; }
+
+  .donut-wrap{ display:flex; gap:12px; align-items:center; }
+  .donut{ width:96px; height:96px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; position:relative;
+    background: conic-gradient(#8b5cf6 0% 11%, #4c82fb 11% 22%, #34d399 22% 33%, #fbbf3f 33% 44%, #f472b6 44% 55%, #60a5fa 55% 66%, #fb7185 66% 77%, #a78bfa 77% 88%, #2dd4bf 88% 100%);
+  }
+  .donut::before{ content:''; position:absolute; inset:14px; background:var(--panel-2); border-radius:50%; }
+  .donut-val{ position:relative; z-index:1; text-align:center; }
+  .donut-val b{ font-size:15px; font-family:'Space Grotesk',sans-serif; display:block; }
+  .donut-val span{ font-size:8px; color:var(--text-3); }
+  .legend{ font-size:10px; color:var(--text-2); flex:1; }
+  .legend-item{ display:flex; align-items:center; justify-content:space-between; padding:2.5px 0; }
+  .legend-item .lname{ display:flex; align-items:center; gap:6px; }
+  .legend-dot{ width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+
+  table{ width:100%; border-collapse:collapse; font-size:11.5px; }
+  th{ text-align:left; color:var(--text-3); font-weight:600; font-size:10px; text-transform:uppercase; letter-spacing:.4px; padding:0 8px 8px; border-bottom:1px solid var(--border); }
+  td{ padding:9px 8px; border-bottom:1px solid rgba(255,255,255,0.04); color:var(--text-1); }
+  tr:last-child td{ border-bottom:none; }
+  .mini-progress{ width:70px; height:5px; background:rgba(255,255,255,0.07); border-radius:5px; overflow:hidden; display:inline-block; vertical-align:middle; margin-right:6px; }
+  .mini-progress-fill{ height:100%; background:var(--grad); }
+  .section-label{ font-size:12px; font-weight:600; margin-bottom:10px; }
+
+  /* Upload card */
+  .col-upload{ grid-column: span 3; }
+  .dropzone{ border:1.5px dashed rgba(255,255,255,0.15); border-radius:12px; padding:22px 14px; text-align:center; margin-bottom:12px; }
+  .dropzone svg{ width:30px; height:30px; color:var(--text-3); margin-bottom:8px; }
+  .dropzone p{ font-size:12px; color:var(--text-2); margin-bottom:2px; }
+  .dropzone .or{ font-size:10px; color:var(--text-3); margin:6px 0; }
+  .file-row{ display:flex; align-items:center; gap:9px; background:var(--panel-2); border:1px solid var(--border); border-radius:9px; padding:9px 10px; margin-bottom:14px; }
+  .file-row svg{ width:16px; height:16px; color:var(--purple-soft); flex-shrink:0; }
+  .file-meta{ flex:1; min-width:0; }
+  .file-name{ font-size:11.5px; font-weight:600; }
+  .file-sub{ font-size:10px; color:var(--text-3); }
+  .field{ margin-bottom:11px; }
+  .field label{ font-size:10.5px; color:var(--text-3); display:block; margin-bottom:5px; }
+  .field .val{ font-size:12px; font-weight:500; }
+  .select-fake{ width:100%; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:11.5px; display:flex; justify-content:space-between; align-items:center; }
+  .slider-fake{ height:5px; background:rgba(255,255,255,0.08); border-radius:5px; position:relative; margin-top:8px; }
+  .slider-fake .fill{ height:100%; background:var(--grad); border-radius:5px; }
+  .slider-fake .knob{ width:12px; height:12px; border-radius:50%; background:#fff; position:absolute; top:50%; transform:translate(-50%,-50%); box-shadow:0 0 0 3px rgba(139,92,246,0.3); }
+
+  /* Live workflow card */
+  .col-workflow{ grid-column: span 4; display:flex; gap:12px; }
+  .wf-list{ flex:1; display:flex; flex-direction:column; gap:3px; }
+  .wf-item{ display:flex; align-items:center; gap:9px; padding:7px 9px; border-radius:9px; font-size:11.5px; }
+  .wf-item.current{ background:rgba(139,92,246,0.14); border:1px solid rgba(139,92,246,0.4); }
+  .wf-num{ width:16px; height:16px; border-radius:50%; background:rgba(255,255,255,0.06); font-size:9px; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--text-2); font-weight:700; }
+  .wf-item.current .wf-num{ background:var(--grad); color:#fff; }
+  .wf-name{ font-weight:600; }
+  .wf-status{ font-size:9.5px; color:var(--text-3); display:block; }
+  .wf-status.done{ color:var(--green); } .wf-status.running{ color:var(--purple-soft); }
+
+  .wf-detail{ flex:1.3; background:var(--panel-2); border:1px solid var(--border); border-radius:11px; padding:14px; }
+  .wf-detail-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .wf-detail-head h4{ font-size:14px; font-weight:600; color:var(--purple-soft); }
+  .agent-status-line{ font-size:11px; color:var(--text-2); margin-bottom:8px; }
+  .prog-track{ height:5px; background:rgba(255,255,255,0.08); border-radius:5px; overflow:hidden; margin-bottom:12px; }
+  .prog-fill{ height:100%; background:var(--grad); width:70%; }
+  .metric-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+  .metric-box{ background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:9px; padding:8px; text-align:center; }
+  .metric-box svg{ width:13px; height:13px; color:var(--purple-soft); margin-bottom:4px; }
+  .metric-box b{ display:block; font-size:12.5px; font-family:'Space Grotesk',sans-serif; }
+  .metric-box span{ font-size:8.5px; color:var(--text-3); }
+  .reasoning-box{ background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:9px; padding:10px; font-size:10.5px; color:var(--text-2); font-style:italic; line-height:1.5; margin-bottom:12px; }
+  .rel-papers .lit-row{ display:flex; justify-content:space-between; font-size:10.5px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+  .rel-papers .lit-row:last-child{ border:none; }
+  .match-pill{ color:var(--purple-soft); font-weight:700; font-size:10px; }
+
+  /* ============ ROW 2 ============ */
+  .col-4{ grid-column: span 3; }
+  .tabs{ display:flex; gap:2px; margin-bottom:12px; border-bottom:1px solid var(--border); overflow-x:auto; }
+  .tab{ font-size:10.5px; font-weight:600; color:var(--text-3); padding:0 0 9px; margin-right:14px; cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; }
+  .tab.active{ color:#fff; border-color:var(--purple); }
+
+  .score-big{ font-size:32px; font-weight:700; font-family:'Space Grotesk',sans-serif; }
+  .score-big span{ font-size:13px; color:var(--text-3); font-weight:500; }
+  .score-tag{ color:var(--green); font-size:11.5px; font-weight:600; margin:3px 0 8px; }
+  .stars{ color:var(--orange); font-size:13px; margin-bottom:14px; letter-spacing:2px; }
+  .check-list{ display:flex; flex-direction:column; gap:8px; }
+  .check-row{ display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:var(--text-2); }
+
+  .radar-wrap{ display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+  .radar-scores{ font-size:10.5px; flex:1; }
+  .radar-scores .rr{ display:flex; justify-content:space-between; padding:4px 0; }
+  .radar-scores b{ color:var(--text-1); font-weight:700; }
+
+  .exec-summary{ background:var(--panel-2); border:1px solid var(--border); border-radius:10px; padding:11px; font-size:10.5px; color:var(--text-2); line-height:1.55; margin-bottom:10px; }
+  .link-arrow{ font-size:11px; color:var(--purple-soft); font-weight:600; cursor:pointer; }
+
+  /* Human approval */
+  .approval-banner{ background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); border-radius:10px; padding:10px 12px; font-size:11.5px; font-weight:600; color:var(--purple-soft); margin-bottom:14px; }
+  .approval-score{ text-align:center; background:var(--panel-2); border:1px solid var(--border); border-radius:11px; padding:14px; margin-bottom:14px; }
+  .approve-actions{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+  .act-btn{ padding:9px; border-radius:9px; font-size:10.5px; font-weight:700; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; border:1px solid; }
+  .act-btn svg{ width:14px; height:14px; }
+  .act-approve{ background:rgba(52,211,153,0.12); color:var(--green); border-color:rgba(52,211,153,0.3); }
+  .act-changes{ background:rgba(251,191,63,0.1); color:var(--orange); border-color:rgba(251,191,63,0.3); }
+  .act-reject{ background:rgba(251,113,133,0.1); color:var(--red); border-color:rgba(251,113,133,0.3); }
+  .notes-box{ width:100%; background:var(--panel-2); border:1px solid var(--border); border-radius:9px; padding:10px; color:var(--text-1); font-size:11px; font-family:'Inter',sans-serif; resize:none; height:56px; margin-bottom:12px; }
+  .notes-box::placeholder{ color:var(--text-3); }
+  .final-actions{ display:grid; grid-template-columns:1fr 1.4fr; gap:8px; }
+
+  /* Review history */
+  .search-row{ display:flex; gap:8px; margin-bottom:10px; }
+  .search-box{ flex:1; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-size:11px; color:var(--text-3); display:flex; align-items:center; gap:6px; }
+  .search-box svg{ width:12px; height:12px; }
+  .filter-btn{ width:30px; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; }
+  .filter-btn svg{ width:13px; height:13px; color:var(--text-2); }
+  .rh-table td, .rh-table th{ padding:7px 6px; font-size:10.5px; }
+  .pagination{ display:flex; gap:5px; margin-top:10px; justify-content:center; }
+  .page-num{ width:22px; height:22px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:var(--text-2); cursor:pointer; }
+  .page-num.active{ background:var(--grad); color:#fff; font-weight:700; }
+
+  /* Literature explorer */
+  .lit-list-item{ display:flex; justify-content:space-between; align-items:flex-start; padding:9px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+  .lit-list-item:last-child{ border:none; }
+  .lit-name{ font-size:11.5px; font-weight:600; }
+  .lit-venue{ font-size:10px; color:var(--text-3); margin-top:2px; }
+  .match-badge{ background:rgba(52,211,153,0.12); color:var(--green); font-size:10px; font-weight:700; padding:3px 8px; border-radius:8px; height:fit-content; }
+
+  /* ============ ROW 3 ============ */
+  .col-8{ grid-column: span 5; }
+  .compare-selects{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+  .diff-pos{ color:var(--green); font-weight:700; }
+  .diff-neg{ color:var(--red); font-weight:700; }
+
+  .col-9{ grid-column: span 4; }
+  .settings-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:6px; }
+
+  .col-10{ grid-column: span 3; }
+  .health-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+  .health-card{ background:var(--panel-2); border:1px solid var(--border); border-radius:9px; padding:9px; }
+  .health-icon{ width:24px; height:24px; border-radius:7px; background:rgba(52,211,153,0.14); display:flex; align-items:center; justify-content:center; margin-bottom:6px; }
+  .health-icon svg{ width:12px; height:12px; color:var(--green); }
+  .health-name{ font-size:10.5px; font-weight:600; }
+  .health-status{ font-size:9.5px; color:var(--green); }
+  .health-sub{ font-size:9px; color:var(--text-3); }
+  .log-row{ display:flex; justify-content:space-between; font-size:10px; padding:5px 0; color:var(--text-2); border-bottom:1px solid rgba(255,255,255,0.04); }
+  .log-row:last-child{ border:none; }
+  .log-tag{ color:var(--purple-soft); font-size:8.5px; font-weight:700; }
+
+  @media (max-width: 1400px){
+    .col-dashboard, .col-upload, .col-workflow{ grid-column: span 12; }
+    .col-4{ grid-column: span 6; }
+    .col-8, .col-9, .col-10{ grid-column: span 12; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= SIDEBAR ================= -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2 14.5 9 21 9 15.5 13.5 17.5 21 12 16.5 6.5 21 8.5 13.5 3 9 9.5 9Z"/></svg></div>
+    <div class="brand-name">AI Paper Reviewer</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v13M6 8l6-6 6 6M4 21h16"/></svg>Upload Paper</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>Live Workflow</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Review Results</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 6 9 17l-5-5"/></svg>Human Approval</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>Review History</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Literature Explorer</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg>Settings</div>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="sys-status"><span class="dot"></span>All systems operational</div>
+    <div class="user-row">
+      <div class="user-avatar">SJ</div>
+      <div><div class="user-name">Dr. Sarah Johnson</div><div class="user-role">Administrator</div></div>
+    </div>
+  </div>
+</aside>
+
+<!-- ================= MAIN ================= -->
+<main>
+  <div class="grid">
+
+    <!-- ============ 1. DASHBOARD ============ -->
+    <section class="card col-dashboard">
+      <div class="greeting-row">
+        <div class="greeting"><h2>Good morning, Dr. Sarah 👋</h2><p>Here's what's happening with your reviews today.</p></div>
+        <button class="btn btn-grad"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>Upload New Paper</button>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">Total Reviews</div><div class="stat-val">245</div><div class="stat-delta up">↑ 18% vs last month</div></div>
+        <div class="stat-card"><div class="stat-label">Completed</div><div class="stat-val">192</div><div class="stat-delta up">↑ 14% vs last month</div></div>
+        <div class="stat-card"><div class="stat-label">In Progress</div><div class="stat-val">6</div><div class="stat-delta down">↓ 2% vs last month</div></div>
+        <div class="stat-card"><div class="stat-label">Avg. Review Time</div><div class="stat-val">5m 24s</div><div class="stat-delta down">↓ 12% vs last month</div></div>
+        <div class="stat-card"><div class="stat-label">Approval Rate</div><div class="stat-val">94%</div><div class="stat-delta up">↑ 9% vs last month</div></div>
+      </div>
+
+      <div class="chart-row">
+        <div class="chart-card">
+          <div class="chart-head"><span>Review Activity (Last 30 Days)</span><span class="seg-dropdown">30 Days ⌄</span></div>
+          <svg viewBox="0 0 300 90" width="100%" height="90" preserveAspectRatio="none">
+            <defs><linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.35"/><stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/></linearGradient></defs>
+            <polyline points="0,60 20,50 40,58 60,35 80,45 100,25 120,40 140,20 160,38 180,22 200,42 220,28 240,15 260,32 280,20 300,30" fill="none" stroke="#8b5cf6" stroke-width="2"/>
+            <polygon points="0,60 20,50 40,58 60,35 80,45 100,25 120,40 140,20 160,38 180,22 200,42 220,28 240,15 260,32 280,20 300,30 300,90 0,90" fill="url(#areaGrad)"/>
+          </svg>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><span>Agent Performance</span></div>
+          <div class="donut-wrap">
+            <div class="donut"><div class="donut-val"><b>96%</b><span>Success Rate</span></div></div>
+            <div class="legend">
+              <div class="legend-item"><span class="lname"><span class="legend-dot" style="background:#8b5cf6"></span>Paper Understanding</span>98%</div>
+              <div class="legend-item"><span class="lname"><span class="legend-dot" style="background:#4c82fb"></span>Literature RAG</span>97%</div>
+              <div class="legend-item"><span class="lname"><span class="legend-dot" style="background:#34d399"></span>Novelty</span>95%</div>
+              <div class="legend-item"><span class="lname"><span class="legend-dot" style="background:#fbbf3f"></span>Methodology</span>96%</div>
+              <div class="legend-item"><span class="lname"><span class="legend-dot" style="background:#f472b6"></span>Citation</span>96%</div>
+              <div class="legend-item"><span class="lname"><span class="legend-dot" style="background:#60a5fa"></span>Evidence</span>94%</div>
+              <div class="legend-item"><span class="lname"><span class="legend-dot" style="background:#fb7185"></span>Reflection</span>97%</div>
+              <div class="legend-item"><span class="lname"><span class="legend-dot" style="background:#a78bfa"></span>Human Approval</span>99%</div>
+              <div class="legend-item"><span class="lname"><span class="legend-dot" style="background:#2dd4bf"></span>Final Review</span>98%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-label">Recent Reviews</div>
+        <table>
+          <tr><th>Paper Title</th><th>Status</th><th>Score</th><th>Progress</th><th>Reviewer</th><th>Updated At</th></tr>
+          <tr><td>Graph Neural Networks for Drug Discovery</td><td><span class="pill pill-green">Completed</span></td><td>91/100</td><td><span class="mini-progress"><span class="mini-progress-fill" style="width:100%"></span></span>100%</td><td>Dr. Sarah</td><td>2 hours ago</td></tr>
+          <tr><td>Self-Supervised Learning for Medical Imaging</td><td><span class="pill pill-blue">In Progress</span></td><td>—</td><td><span class="mini-progress"><span class="mini-progress-fill" style="width:67%"></span></span>67%</td><td>—</td><td>30 mins ago</td></tr>
+          <tr><td>A Survey on LLM Evaluation</td><td><span class="pill pill-orange">Awaiting Approval</span></td><td>88/100</td><td><span class="mini-progress"><span class="mini-progress-fill" style="width:100%"></span></span>100%</td><td>Dr. John</td><td>1 hour ago</td></tr>
+          <tr><td>Diffusion Models for Time Series</td><td><span class="pill pill-green">Completed</span></td><td>85/100</td><td><span class="mini-progress"><span class="mini-progress-fill" style="width:100%"></span></span>100%</td><td>Dr. Sarah</td><td>Yesterday</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ 2. UPLOAD PAPER ============ -->
+    <section class="card col-upload">
+      <div class="card-title-row"><div class="card-title"><span class="num-badge">2</span>Upload Paper</div></div>
+
+      <div class="dropzone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/></svg>
+        <p>Drag &amp; drop your PDF here</p>
+        <div class="or">or</div>
+        <button class="btn btn-grad" style="margin-top:4px;">Browse Files</button>
+      </div>
+
+      <div class="file-row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5M9 13h6M9 17h6"/></svg>
+        <div class="file-meta"><div class="file-name">Graph Neural Networks Survey.pdf</div><div class="file-sub">2.4 MB · 23 pages</div></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" style="width:15px;height:15px;"><path d="M20 6 9 17l-5-5"/></svg>
+      </div>
+
+      <div class="section-label" style="font-size:11px;">Paper Information</div>
+      <div class="field"><label>Title</label><div class="val">Graph Neural Networks for Drug Discovery: A Survey</div></div>
+      <div class="field"><label>Authors</label><div class="val">J. Smith, M. Lee, R. Kumar</div></div>
+      <div class="field"><label>Pages</label><div class="val">23</div></div>
+      <div class="field"><label>Research Area</label><div class="select-fake">Machine Learning <span>⌄</span></div></div>
+      <div class="field"><label>Review Depth</label><div class="select-fake">Standard (Recommended) <span>⌄</span></div></div>
+      <div class="field"><label>Top K Literature</label><div class="slider-fake"><div class="fill" style="width:50%"></div><div class="knob" style="left:50%"></div></div></div>
+
+      <button class="btn btn-grad btn-block" style="margin-top:8px;">Start AI Review</button>
+    </section>
+
+    <!-- ============ 3. LIVE AGENT WORKFLOW ============ -->
+    <section class="card col-workflow">
+      <div style="grid-column:1/-1; width:100%;">
+        <div class="card-title-row"><div class="card-title"><span class="num-badge">3</span>Live Agent Workflow (Centerpiece)</div></div>
+        <div style="display:flex; gap:12px;">
+          <div class="wf-list">
+            <div class="wf-item"><span class="wf-num">1</span><div><span class="wf-name">Paper Understanding</span><span class="wf-status done">Completed · 12s</span></div></div>
+            <div class="wf-item"><span class="wf-num">2</span><div><span class="wf-name">Figure &amp; Table Analysis</span><span class="wf-status done">Completed · 18s</span></div></div>
+            <div class="wf-item"><span class="wf-num">3</span><div><span class="wf-name">Literature RAG</span><span class="wf-status done">Completed · 45s</span></div></div>
+            <div class="wf-item current"><span class="wf-num">4</span><div><span class="wf-name">Novelty Review</span><span class="wf-status running">In Progress · 30s</span></div></div>
+            <div class="wf-item"><span class="wf-num">5</span><div><span class="wf-name">Methodology Review</span><span class="wf-status">Pending</span></div></div>
+            <div class="wf-item"><span class="wf-num">6</span><div><span class="wf-name">Citation Review</span><span class="wf-status">Pending</span></div></div>
+            <div class="wf-item"><span class="wf-num">7</span><div><span class="wf-name">Evidence &amp; Reproducibility</span><span class="wf-status">Pending</span></div></div>
+            <div class="wf-item"><span class="wf-num">8</span><div><span class="wf-name">Reflection Agent</span><span class="wf-status">Pending</span></div></div>
+            <div class="wf-item"><span class="wf-num">9</span><div><span class="wf-name">Human Approval</span><span class="wf-status">Pending</span></div></div>
+            <div class="wf-item"><span class="wf-num">10</span><div><span class="wf-name">Final Review</span><span class="wf-status">Pending</span></div></div>
+          </div>
+          <div class="wf-detail">
+            <div class="wf-detail-head"><h4>Novelty Review</h4><span class="pill pill-purple">In Progress</span></div>
+            <div class="agent-status-line">Agent Status<br><b style="color:var(--text-1)">Analyzing novelty and contributions…</b></div>
+            <div class="prog-track"><div class="prog-fill"></div></div>
+            <div style="text-align:right; font-size:10px; color:var(--text-3); margin-top:-8px; margin-bottom:10px;">70%</div>
+            <div class="metric-row">
+              <div class="metric-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg><b>93%</b><span>Confidence</span></div>
+              <div class="metric-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><b>7 papers</b><span>Evidence Found</span></div>
+              <div class="metric-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg><b>30s</b><span>Processing</span></div>
+            </div>
+            <div class="section-label" style="font-size:10.5px;">Agent Reasoning (Live)</div>
+            <div class="reasoning-box">The paper proposes a novel taxonomy for GNN-based drug discovery models. The adaptive subgraph sampling strategy is innovative and distinct compared to existing approaches…</div>
+            <div class="section-label" style="font-size:10.5px;">Top Related Papers</div>
+            <div class="rel-papers">
+              <div class="lit-row"><span>Hierarchical Graph Representation Learning</span><span class="match-pill">98%</span></div>
+              <div class="lit-row"><span>Subgraph Neural Networks</span><span class="match-pill">96%</span></div>
+              <div class="lit-row"><span>Inductive Representation Learning on Graphs</span><span class="match-pill">94%</span></div>
+            </div>
+            <div style="text-align:center; margin-top:10px;"><span class="link-arrow">View All (7)</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 4. REVIEW RESULTS ============ -->
+    <section class="card col-4">
+      <div class="card-title-row"><div class="card-title"><span class="num-badge">4</span>Review Results</div></div>
+      <div class="tabs">
+        <div class="tab active">Overview</div><div class="tab">Detailed Review</div><div class="tab">Evidence</div><div class="tab">Agent Outputs</div><div class="tab">RAG Sources</div>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <div style="font-size:10px; color:var(--text-3); margin-bottom:2px;">Overall Score</div>
+        <div class="score-big">91<span>/100</span></div>
+        <div class="score-tag">Excellent</div>
+        <div class="stars">★★★★★</div>
+        <div class="check-list">
+          <div class="check-row">Reflection Passed <span class="pill pill-green">Yes</span></div>
+          <div class="check-row">Plagiarism Detected <span class="pill pill-green">No</span></div>
+          <div class="check-row">Reproducibility <span class="pill pill-purple">Good</span></div>
+          <div class="check-row">Human Approval <span class="pill pill-orange">Pending</span></div>
+        </div>
+      </div>
+
+      <div class="radar-wrap">
+        <svg viewBox="0 0 140 140" width="120" height="120">
+          <polygon points="70,15 118,45 118,95 70,125 22,95 22,45" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+          <polygon points="70,38 100,55 100,88 70,105 40,88 40,55" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+          <polygon points="70,20 112,47 110,92 70,118 28,92 26,47" fill="rgba(139,92,246,0.28)" stroke="#8b5cf6" stroke-width="1.5"/>
+          <text x="70" y="10" fill="#9096b3" font-size="7" text-anchor="middle">Presentation</text>
+          <text x="122" y="45" fill="#9096b3" font-size="7">Novelty</text>
+          <text x="122" y="98" fill="#9096b3" font-size="7">Methodology</text>
+          <text x="70" y="134" fill="#9096b3" font-size="7" text-anchor="middle">Citation</text>
+          <text x="6" y="98" fill="#9096b3" font-size="7">Evidence</text>
+          <text x="2" y="45" fill="#9096b3" font-size="7">Reproducibility</text>
+        </svg>
+        <div class="radar-scores">
+          <div class="rr"><span>Novelty</span><b>9.5/10</b></div>
+          <div class="rr"><span>Methodology</span><b>8.8/10</b></div>
+          <div class="rr"><span>Citation</span><b>9.0/10</b></div>
+          <div class="rr"><span>Evidence</span><b>8.5/10</b></div>
+          <div class="rr"><span>Reproducibility</span><b>8.7/10</b></div>
+          <div class="rr"><span>Presentation</span><b>9.2/10</b></div>
+        </div>
+      </div>
+
+      <div class="exec-summary">This paper presents a comprehensive survey of Graph Neural Networks (GNNs) in drug discovery. The taxonomy is well-structured and covers recent advancements thoroughly. The novelty lies in the adaptive sampling strategy and unified evaluation framework.</div>
+      <span class="link-arrow">View Full Review →</span>
+    </section>
+
+    <!-- ============ 5. HUMAN APPROVAL ============ -->
+    <section class="card col-4">
+      <div class="card-title-row"><div class="card-title"><span class="num-badge">5</span>Human Approval</div></div>
+      <div class="approval-banner">Review Ready for Your Approval</div>
+
+      <div class="approval-score">
+        <div class="score-big">91<span>/100</span> <span style="font-size:12px;color:var(--green);font-weight:600;">Excellent</span></div>
+        <div class="stars">★★★★★</div>
+      </div>
+
+      <div class="section-label" style="font-size:11px;">Your Decision</div>
+      <div class="approve-actions">
+        <div class="act-btn act-approve"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Approve</div>
+        <div class="act-btn act-changes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Request<br>Changes</div>
+        <div class="act-btn act-reject"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>Reject</div>
+      </div>
+
+      <div class="section-label" style="font-size:11px;">Reviewer Notes (Optional)</div>
+      <textarea class="notes-box" placeholder="Add your comments or feedback for the authors…"></textarea>
+
+      <div class="final-actions">
+        <button class="btn btn-ghost btn-block">Cancel</button>
+        <button class="btn btn-grad btn-block">Submit Decision</button>
+      </div>
+    </section>
+
+    <!-- ============ 6. REVIEW HISTORY ============ -->
+    <section class="card col-4">
+      <div class="card-title-row"><div class="card-title"><span class="num-badge">6</span>Review History</div></div>
+      <div class="tabs">
+        <div class="tab active">All</div><div class="tab">Completed</div><div class="tab">In Progress</div><div class="tab">Awaiting Approval</div><div class="tab">Rejected</div>
+      </div>
+      <div class="search-row">
+        <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Search papers…</div>
+        <div class="filter-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg></div>
+      </div>
+      <table class="rh-table">
+        <tr><th>Paper Title</th><th>Status</th><th>Score</th></tr>
+        <tr><td>Graph Neural Networks Survey</td><td><span class="pill pill-green">Completed</span></td><td>91/100</td></tr>
+        <tr><td>Self-Supervised Medical Imaging</td><td><span class="pill pill-blue">In Progress</span></td><td>—</td></tr>
+        <tr><td>A Survey on LLM Evaluation</td><td><span class="pill pill-orange">Awaiting</span></td><td>88/100</td></tr>
+        <tr><td>Diffusion Models for Time Series</td><td><span class="pill pill-green">Completed</span></td><td>85/100</td></tr>
+        <tr><td>Vision Transformers Survey</td><td><span class="pill pill-green">Completed</span></td><td>92/100</td></tr>
+        <tr><td>Federated Learning Review</td><td><span class="pill pill-red">Rejected</span></td><td>72/100</td></tr>
+        <tr><td>Reinforcement Learning Survey</td><td><span class="pill pill-green">Completed</span></td><td>90/100</td></tr>
+      </table>
+      <div class="pagination">
+        <div class="page-num active">1</div><div class="page-num">2</div><div class="page-num">3</div><div class="page-num">…</div><div class="page-num">10</div>
+      </div>
+    </section>
+
+    <!-- ============ 7. LITERATURE EXPLORER ============ -->
+    <section class="card col-4">
+      <div class="card-title-row"><div class="card-title"><span class="num-badge">7</span>Literature Explorer</div></div>
+      <div class="search-row">
+        <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Search literature…</div>
+        <div class="filter-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg></div>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span class="section-label" style="margin:0; font-size:11px;">Top K Results</span>
+        <span class="pill pill-purple">10</span>
+      </div>
+
+      <div class="lit-list-item"><div><div class="lit-name">Hierarchical Graph Representation Learning</div><div class="lit-venue">NeurIPS 2022</div></div><span class="match-badge">98%</span></div>
+      <div class="lit-list-item"><div><div class="lit-name">Subgraph Neural Networks: A Survey</div><div class="lit-venue">IEEE TPAMI 2021</div></div><span class="match-badge">96%</span></div>
+      <div class="lit-list-item"><div><div class="lit-name">Inductive Representation Learning on Graphs</div><div class="lit-venue">ICLR 2020</div></div><span class="match-badge">94%</span></div>
+      <div class="lit-list-item"><div><div class="lit-name">Graph Neural Networks for Drug Discovery</div><div class="lit-venue">Bioinformatics 2021</div></div><span class="match-badge">93%</span></div>
+      <div class="lit-list-item"><div><div class="lit-name">Adaptive Sampling Methods in GNNs</div><div class="lit-venue">AAAI 2023</div></div><span class="match-badge">91%</span></div>
+
+      <button class="btn btn-grad btn-block" style="margin-top:12px;">View All Results →</button>
+    </section>
+
+    <!-- ============ 8. PAPER COMPARISON ============ -->
+    <section class="card col-8">
+      <div class="card-title-row"><div class="card-title"><span class="num-badge">8</span>Paper Comparison</div></div>
+      <div class="compare-selects">
+        <div class="field"><label>Select Paper A</label><div class="select-fake">Graph Neural Networks Survey <span>⌄</span></div></div>
+        <div class="field"><label>Select Paper B</label><div class="select-fake">Vision Transformers Survey <span>⌄</span></div></div>
+      </div>
+      <table>
+        <tr><th>Criteria</th><th>Paper A Score</th><th>Paper B Score</th><th>Difference</th></tr>
+        <tr><td>Novelty</td><td>9.5</td><td>8.7</td><td class="diff-pos">+0.8</td></tr>
+        <tr><td>Methodology</td><td>8.8</td><td>9.1</td><td class="diff-neg">-0.3</td></tr>
+        <tr><td>Citation</td><td>9.0</td><td>8.2</td><td class="diff-pos">+0.8</td></tr>
+        <tr><td>Evidence</td><td>8.5</td><td>8.9</td><td class="diff-neg">-0.4</td></tr>
+        <tr><td>Reproducibility</td><td>8.7</td><td>8.8</td><td class="diff-neg">-0.1</td></tr>
+        <tr><td><b>Overall Score</b></td><td><b>91/100</b></td><td><b>88/100</b></td><td class="diff-pos">+3</td></tr>
+      </table>
+    </section>
+
+    <!-- ============ 9. SETTINGS ============ -->
+    <section class="card col-9">
+      <div class="card-title-row"><div class="card-title"><span class="num-badge">9</span>Settings</div></div>
+      <div class="tabs">
+        <div class="tab active">General</div><div class="tab">LLM &amp; Embeddings</div><div class="tab">Vector Store</div><div class="tab">Database</div><div class="tab">Evaluation</div><div class="tab">System</div>
+      </div>
+      <div class="settings-grid">
+        <div>
+          <div class="field"><label>Default LLM</label><div class="select-fake">Llama 3.1 8B <span>⌄</span></div></div>
+          <div class="field"><label>Embedding Model</label><div class="select-fake">BAAI bge-large-en-v1.5 <span>⌄</span></div></div>
+          <div class="field"><label>Top K Literature</label><div class="slider-fake"><div class="fill" style="width:50%"></div><div class="knob" style="left:50%"></div></div></div>
+          <div class="field"><label>Reflection Passes</label><div class="slider-fake"><div class="fill" style="width:30%"></div><div class="knob" style="left:30%"></div></div></div>
+        </div>
+        <div>
+          <div class="field"><label>Temperature</label><div class="slider-fake"><div class="fill" style="width:20%"></div><div class="knob" style="left:20%"></div></div></div>
+          <div class="field"><label>Max Tokens</label><div class="select-fake">4096</div></div>
+          <div class="field"><label>Review Depth</label><div class="select-fake">Standard <span>⌄</span></div></div>
+          <div class="field"><label>Language</label><div class="select-fake">English <span>⌄</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 10. SYSTEM HEALTH ============ -->
+    <section class="card col-10">
+      <div class="card-title-row"><div class="card-title"><span class="num-badge">10</span>System Health</div></div>
+      <div class="health-grid">
+        <div class="health-card"><div class="health-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div class="health-name">LLM Service</div><div class="health-status">Healthy</div><div class="health-sub">Llama 3.1 8B</div></div>
+        <div class="health-card"><div class="health-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div class="health-name">Vector Store</div><div class="health-status">Healthy</div><div class="health-sub">FAISS</div></div>
+        <div class="health-card"><div class="health-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div class="health-name">Database</div><div class="health-status">Healthy</div><div class="health-sub">MySQL</div></div>
+        <div class="health-card"><div class="health-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div class="health-name">Checkpoint DB</div><div class="health-status">Healthy</div><div class="health-sub">SQLite</div></div>
+      </div>
+      <div class="section-label" style="font-size:11px;">System Logs (Last 24 Hours)</div>
+      <div class="log-row"><span>10:24 AM · Review completed: Graph Neural Networks Survey</span><span class="log-tag">INFO</span></div>
+      <div class="log-row"><span>10:23 AM · Human approval pending</span><span class="log-tag">INFO</span></div>
+      <div class="log-row"><span>10:20 AM · Reflection agent passed</span><span class="log-tag">INFO</span></div>
+      <div class="log-row"><span>10:18 AM · All agents completed successfully</span><span class="log-tag">INFO</span></div>
+      <div style="text-align:right; margin-top:8px;"><span class="link-arrow">View All Logs →</span></div>
+    </section>
+
+  </div>
+</main>
+
+<script>
+  document.querySelectorAll('.tabs').forEach(group => {
+    const tabs = group.querySelectorAll('.tab');
+    tabs.forEach(t => t.addEventListener('click', () => {
+      tabs.forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+    }));
+  });
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      item.classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>

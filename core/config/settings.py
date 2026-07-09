@@ -58,6 +58,9 @@ class VisionSettings(BaseModel):
     provider: Literal["qwen2-vl-7b", "llama3.2-vision-11b"] = "qwen2-vl-7b"
     base_url: str = "http://localhost:11434"
     max_figures_per_paper: int = 15
+    temperature: float = 0.1        # low: we want a factual description, not creative variation
+    max_tokens: int = 512           # a figure caption/description doesn't need essay length
+    crop_dpi: int = 300             # passed to figure_cropper.crop_figure
 
 
 class EmbeddingSettings(BaseModel):
