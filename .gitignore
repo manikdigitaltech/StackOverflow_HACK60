@@ -1,26 +1,18 @@
 .venv/
-venv/
 __pycache__/
 *.pyc
 .DS_Store
-.ipynb_checkpoints/
+.env
 
-# large data folders
-PeerRead/
-peerread_processed/
-data/
-finetune_data/
-
-# model and output folders
 models/
 outputs/
-
-# large model files
+data/
+finetune_data/
+finetune_data_hf_preview/
+hf_openreview_raw/
+PeerRead/
+peerread_processed/
 *.pt
 *.pth
 *.bin
 *.safetensors
-*.gguf
-
-# environment files
-.env
