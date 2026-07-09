@@ -42,10 +42,15 @@ back into that file. Status verified against the actual codebase, not just docs.
 
 ## ❌ Not started — graded / high-value / mandatory
 
-- [ ] **Human-in-the-Loop approval** — §1, §2, §6.7, §11. **MANDATORY constraint**,
-  not a bonus ("Final decision requires human-in-the-loop approval"). Needs a
-  LangGraph `interrupt()` before `final_review` + an approval action in the UI.
-  No `interrupt()`, no approval flow exists today.
+- [x] **Human-in-the-Loop approval** — §1, §2, §6.7, §11 (the mandatory
+  constraint). Done end to end: `human_approval` graph node with LangGraph
+  `interrupt()` after `final_review` (approve / reject / revise-with-override,
+  human's override rewrites the recommendation), an `awaiting_approval` SSE
+  event + `POST /api/approve/{run_id}` resume endpoint in `server/`, and live
+  Approve/Request Changes/Reject buttons in the UI. Verified by
+  `scripts/test_human_approval.py` (graph) and an end-to-end mocked server
+  flow. Only DB persistence of decisions remains (tracked above under
+  "Wire DB persistence").
 - [ ] **Build the real PeerRead literature corpus (data)** — §9 (mandatory dataset).
   `core/rag/ingestion/build_corpus.py` exists but was never run against a real
   PeerRead clone → `search_literature()` returns `[]` today, so novelty/citation
@@ -64,21 +69,17 @@ back into that file. Status verified against the actual codebase, not just docs.
 
 ## Priority order
 
-1. **Human-in-the-Loop approval** — the only mandatory (§11) item not done; small.
-   LangGraph `interrupt()` before `final_review` + UI approve/reject.
-2. **Build the real PeerRead corpus** — unblocks genuine novelty/citation grounding.
+1. **Build the real PeerRead corpus** — unblocks genuine novelty/citation grounding.
    Run `build_corpus.py` against a PeerRead clone.
-3. **Evaluation harness** — highest graded value (§8, §10). Test-split loader →
+2. **Evaluation harness** — highest graded value (§8, §10). Test-split loader →
    graph → accept/reject mapping → accuracy/F1/κ.
-4. **Wire LangGraph into the live dashboard** — mechanical, low-risk; replaces
-   placeholder cards.
-5. **Bonus polish** — rebuttal re-review, hallucination/grounding metrics
+3. **Bonus polish** — rebuttal re-review, hallucination/grounding metrics
    (DeepEval/RAGAS), wire HyDE/decompose query-shaping, pull a vision model
-   + `VISION__ENABLED=true`.
+   + `VISION__ENABLED=true`, DB persistence of approvals/reviews.
 
 ---
 
-**Bottom line:** every *architectural* requirement is built and tested. Missing:
-(a) one mandatory constraint — human-in-the-loop approval, (b) real data in the
-literature corpus, and (c) all measurement — the evaluation harness that produces
-the accuracy/F1/κ numbers the challenge is graded on.
+**Bottom line:** every *architectural* requirement — including the mandatory
+human-in-the-loop approval gate — is built and tested. Missing: (a) real data
+in the literature corpus, and (b) all measurement — the evaluation harness
+that produces the accuracy/F1/κ numbers the challenge is graded on.

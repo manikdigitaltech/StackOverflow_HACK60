@@ -912,6 +912,17 @@
       background: var(--orange);
     }
 
+    .status-awaiting {
+      background: rgba(251, 191, 63, 0.12);
+      color: var(--orange);
+    }
+
+    .status-awaiting .sd {
+      background: var(--orange);
+      box-shadow: 0 0 6px var(--orange);
+      animation: blinkDot 1.3s infinite;
+    }
+
     .status-revision {
       background: rgba(251, 113, 133, 0.12);
       color: var(--red);
@@ -1834,6 +1845,7 @@
       skipped: '<span class="status-badge status-skipped"><span class="sd"></span>Skipped</span>',
       not_available: '<span class="status-badge status-skipped"><span class="sd"></span>Not Available</span>',
       not_implemented: '<span class="status-badge status-planned"><span class="sd"></span>Not Yet Implemented</span>',
+      awaiting_approval: '<span class="status-badge status-awaiting"><span class="sd"></span>Awaiting Approval</span>',
       waiting: '<span class="status-badge status-waiting"><span class="sd"></span>Waiting</span>',
     };
 
@@ -1852,7 +1864,9 @@
       if (latest.status === 'skipped') return latest.message || 'Skipped';
       if (latest.status === 'not_available') return latest.message || 'Not available';
       if (latest.status === 'not_implemented') return 'Not built yet';
+      if (latest.status === 'awaiting_approval') return 'Drafted review parked -- approve, revise, or reject it in the Human Approval tab.';
       if (latest.status === 'done') {
+        if (card.key === 'human_approval') return latest.message || 'Decision recorded.';
         if (card.key === 'parse') return `Segmented into ${latest.section_names.length} section(s), ${latest.num_tables} table(s), ${latest.num_figures} figure(s).`;
         if (card.key === 'vision') return `Described ${latest.num_analyzed} figure(s) with the local vision model.`;
         if (card.key === 'rag') {
@@ -1900,7 +1914,10 @@
       document.getElementById('tpbFill').style.width = pct + '%';
       document.getElementById('tpbPct').textContent = pct + '%';
       const running = CARDS.find(c => statusOf(c) === 'running');
-      document.getElementById('tpbCurrent').textContent = running ? ('● ' + running.label + ' running') : (pct === 100 ? '● Pipeline finished' : '● Idle');
+      const awaiting = CARDS.some(c => statusOf(c) === 'awaiting_approval');
+      document.getElementById('tpbCurrent').textContent = running ? ('● ' + running.label + ' running')
+        : awaiting ? '● Awaiting human approval'
+        : (pct === 100 ? '● Pipeline finished' : '● Idle');
     }
 
     // The activity feed is the chronological TIMING log (what happened, when,
@@ -2033,6 +2050,9 @@
         if (event.stage === 'final_report' && event.status === 'done') {
           renderFinalReviewView();
           renderApprovalView();
+        }
+        if (event.stage === 'human_approval' && event.status === 'awaiting_approval') {
+          renderApprovalView();   // re-render so the awaiting banner + live buttons appear
         }
         if (card) {
           lastUpdatedCardKey = card.key;
@@ -2254,6 +2274,26 @@
         <div class="sp-block"><h5>Weaknesses</h5><ul>${r.weaknesses.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul></div>
         See the "Final Review" tab in the top nav for the full formatted report.`;
       }
+      if (card.key === 'human_approval') {
+        const e = liveEvents['human_approval'];
+        if (!e) return `<div class="sp-block"><p>Waiting for the review to reach the approval gate...</p></div>`;
+        if (e.status === 'awaiting_approval') {
+          const req = e.request || {};
+          return `
+          <div class="sp-block"><h5>Awaiting Your Decision</h5><p>${escapeHtml(e.message || '')}</p></div>
+          <div class="sp-block"><h5>Drafted Recommendation</h5><p>${titleCase(req.draft_recommendation || '?')} (confidence: ${titleCase(req.draft_confidence || '?')})</p></div>
+          <div class="sp-block"><p>Approve, request changes, or reject in the Human Approval tab.</p></div>`;
+        }
+        if (e.status === 'done' && e.approval) {
+          const a = e.approval;
+          return `
+          <div class="sp-block"><h5>Decision: ${escapeHtml(a.decision)}</h5>
+            ${a.override_recommendation ? `<p>Recommendation overridden to: ${titleCase(a.override_recommendation)}</p>` : ''}
+            ${a.comment ? `<p>Comment: ${escapeHtml(a.comment)}</p>` : ''}
+            ${a.decided_at ? `<p>Decided at: ${escapeHtml(a.decided_at)}</p>` : ''}</div>`;
+        }
+        return `<div class="sp-block"><p>${escapeHtml(e.message || e.status)}</p></div>`;
+      }
       return `<div class="sp-block"><p>${escapeHtml(JSON.stringify(liveEvents[card.stageKeys[0]] || {}, null, 2))}</p></div>`;
     }
 
@@ -2399,15 +2439,67 @@
       const doc = document.getElementById('approvalDoc');
       if (!e || e.status !== 'done' || !e.result) return;
       const r = e.result;
-      doc.innerHTML = `
+      const approvalEv = liveEvents['human_approval'];
+      let banner = '';
+      if (approvalEv && approvalEv.status === 'awaiting_approval') {
+        banner = `<p style="color:var(--orange);font-weight:600;">⏸ The review run is parked at the approval gate -- the recommendation below will not be issued until you decide.</p>`;
+      } else if (approvalEv && approvalEv.status === 'done' && approvalEv.approval) {
+        const a = approvalEv.approval;
+        banner = `<p style="color:var(--green);font-weight:600;">✓ Decision recorded: ${escapeHtml(a.decision)}${a.override_recommendation ? ` (recommendation overridden to ${escapeHtml(a.override_recommendation)})` : ''}${a.comment ? ` -- "${escapeHtml(a.comment)}"` : ''}</p>`;
+      }
+      doc.innerHTML = `${banner}
         <h3>Summary</h3><p>${escapeHtml(r.paper_summary)}</p>
         <h3>Strengths</h3><ul>${r.strengths.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>'}</ul>
         <h3>Weaknesses</h3><ul>${r.weaknesses.map(s => `<li>${escapeHtml(s)}</li>`).join('') || '<li>(none)</li>'}</ul>
         <h3>Recommendation</h3><p>${titleCase(r.final_recommendation)} (confidence: ${titleCase(r.confidence)})</p>`;
     }
 
-    function handleApprovalAction(action) {
-      alert('Human-in-the-loop persistence is not wired yet (tracked in docs/CONTEXT.md as Phase 2 -- no MySQL writes exist yet). This click is not recorded anywhere.');
+    async function handleApprovalAction(action) {
+      const approvalEv = liveEvents['human_approval'];
+      if (!runId || !approvalEv || approvalEv.status !== 'awaiting_approval') {
+        alert(approvalEv && approvalEv.status === 'done'
+          ? 'A decision was already recorded for this run.'
+          : 'No review is awaiting approval yet -- wait for the pipeline to reach the approval gate.');
+        return;
+      }
+
+      const body = { decision: { approve: 'approved', changes: 'revised', reject: 'rejected' }[action] };
+      const comment = document.getElementById('approvalComment').value.trim();
+      if (comment) body.comment = comment;
+      if (action === 'changes') {
+        const override = prompt('Override the recommendation? Enter one of: accept, weak_accept, borderline, weak_reject, reject -- or leave blank to record your comment without overriding.', '');
+        if (override === null) return;   // human cancelled -- leave the run parked
+        const cleaned = override.trim().toLowerCase();
+        if (cleaned) {
+          if (!['accept', 'weak_accept', 'borderline', 'weak_reject', 'reject'].includes(cleaned)) {
+            alert(`"${override}" is not a valid recommendation.`); return;
+          }
+          body.override_recommendation = cleaned;
+        }
+      }
+
+      try {
+        const resp = await fetch(`/api/approve/${runId}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { alert(data.detail || 'Approval failed.'); return; }
+
+        const decided = data.human_approval || {};
+        liveEvents['human_approval'] = {
+          stage: 'human_approval', status: 'done', ts: Date.now() / 1000,
+          message: `Decision: ${decided.decision}${decided.override_recommendation ? ` (overridden to ${decided.override_recommendation})` : ''}`,
+          approval: decided,
+        };
+        if (data.final_review) liveEvents['final_report'].result = data.final_review;  // override case: keep exports/views consistent
+        appendActivity(liveEvents['human_approval'], CARDS.find(c => c.key === 'human_approval'));
+        renderCards();
+        updateProgressBar();
+        renderFinalReviewView();
+        renderApprovalView();
+      } catch (err) {
+        alert('Could not reach the approval endpoint: ' + err);
+      }
     }
 
     function exportFinalReviewJson() {
