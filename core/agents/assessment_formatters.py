@@ -1,0 +1,77 @@
+"""
+Shared helpers that format each agent's structured output into compact,
+readable text -- used by any agent that needs to feed OTHER agents'
+results into its own prompt (Reflection, Final Review), rather than
+duplicating the same formatting logic in each.
+"""
+
+from core.schemas.agent_output_schemas import (
+    PaperUnderstandingOutput, FigureTableSummary, NoveltyAssessment,
+    MethodologyAssessment, CitationAssessment, EvidenceReproducibilityAssessment,
+    ReflectionNotes,
+)
+
+
+def format_understanding(u: PaperUnderstandingOutput) -> str:
+    lines = [f"Summary: {u.summary}", "Stated contributions:"]
+    lines += [f"  - {c}" for c in u.stated_contributions]
+    return "\n".join(lines)
+
+
+def format_figure_table(ft: FigureTableSummary) -> str:
+    lines = []
+    for f in ft.figure_summaries:
+        lines.append(f"  - [{f.figure_id}] {f.interpretation}")
+    for t in ft.table_summaries:
+        lines.append(f"  - [{t.table_id}] {t.key_takeaway}")
+    if ft.extraction_consistency_note:
+        lines.append(f"Consistency note: {ft.extraction_consistency_note}")
+    return "\n".join(lines) if lines else "No figures or tables were extracted."
+
+
+def format_novelty(a: NoveltyAssessment) -> str:
+    lines = [f"Novelty rating: {a.novelty_rating}"]
+    for v in a.contribution_verdicts:
+        lines.append(f"  - [{v.verdict}] {v.contribution}: {v.note}")
+    for o in a.overlapping_work:
+        lines.append(f'  - Overlap cited: "{o.compared_paper_title}": {o.similarity_note}')
+    lines.append(f"Reasoning: {a.reasoning}")
+    return "\n".join(lines)
+
+
+def format_methodology(a: MethodologyAssessment) -> str:
+    lines = [f"Soundness rating: {a.soundness_rating}"]
+    for v in a.aspect_verdicts:
+        lines.append(f"  - [{v.assessment}] {v.aspect}: {v.note}")
+    if a.missing_baselines:
+        lines.append(f"Missing baselines: {', '.join(a.missing_baselines)}")
+    lines.append(f"Reasoning: {a.reasoning}")
+    return "\n".join(lines)
+
+
+def format_citation(a: CitationAssessment) -> str:
+    lines = [f"Citation quality: {a.citation_quality_rating}"]
+    for v in a.coverage_verdicts:
+        status = "cited" if v.cited else "NOT CITED"
+        lines.append(f"  - [{status}] {v.related_paper_title}: {v.note}")
+    lines.append(f"Reasoning: {a.reasoning}")
+    return "\n".join(lines)
+
+
+def format_evidence_repro(a: EvidenceReproducibilityAssessment) -> str:
+    lines = [f"Overall rating: {a.overall_rating}"]
+    for c in a.claim_verdicts:
+        lines.append(f"  - [{c.verdict}] Claim: {c.claim} -- {c.note}")
+    for v in a.reproducibility_verdicts:
+        lines.append(f"  - [{v.assessment}] {v.aspect}: {v.note}")
+    lines.append(f"Reasoning: {a.reasoning}")
+    return "\n".join(lines)
+
+
+def format_reflection(r: ReflectionNotes) -> str:
+    lines = [f"Overall confidence in assessments: {r.overall_confidence}",
+             f"Needs revision: {r.needs_revision}"]
+    for f in r.flags:
+        lines.append(f"  - [{f.severity}] ({f.source_agent}) {f.flagged_item}: {f.issue}")
+    lines.append(f"Summary: {r.summary}")
+    return "\n".join(lines)

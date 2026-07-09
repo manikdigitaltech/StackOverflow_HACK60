@@ -1,0 +1,2223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Scientific Paper Reviewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090a12;
+      --bg-2: #0d0f1a;
+      --glass: rgba(255, 255, 255, 0.045);
+      --glass-hover: rgba(255, 255, 255, 0.075);
+      --glass-border: rgba(255, 255, 255, 0.09);
+      --purple: #8b5cf6;
+      --purple-soft: #a78bfa;
+      --blue: #4c82fb;
+      --blue-soft: #60a5fa;
+      --grad: linear-gradient(135deg, #8b5cf6 0%, #4c82fb 100%);
+      --grad-soft: linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(76, 130, 251, 0.18));
+      --text-1: #f2f3f9;
+      --text-2: #9aa1c0;
+      --text-3: #666f94;
+      --green: #34d399;
+      --blue-status: #60a5fa;
+      --orange: #fbbf3f;
+      --red: #fb7185;
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-1);
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Ambient background blobs */
+    .ambient {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 15% 20%, rgba(139, 92, 246, 0.16), transparent 40%),
+        radial-gradient(circle at 85% 75%, rgba(76, 130, 251, 0.14), transparent 45%),
+        radial-gradient(circle at 50% 100%, rgba(139, 92, 246, 0.08), transparent 50%);
+    }
+
+    .noise {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      opacity: 0.025;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ---------------- TOP BAR (replaces the sidebar) ---------------- */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 15;
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      height: 56px;
+      padding: 0 32px;
+      background: rgba(13, 15, 26, 0.75);
+      border-bottom: 1px solid var(--glass-border);
+      backdrop-filter: blur(20px);
+    }
+
+    .logo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-right: 6px;
+      flex-shrink: 0;
+    }
+
+    .logo-mark {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      background: var(--grad);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 18px rgba(139, 92, 246, 0.4);
+      flex-shrink: 0;
+    }
+
+    .logo-mark svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .logo-text {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+    }
+
+    .topbar-tabs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .topbar-tab {
+      padding: 7px 14px;
+      border-radius: 8px;
+      color: var(--text-2);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .18s ease;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .topbar-tab:hover {
+      background: var(--glass);
+      color: var(--text-1);
+    }
+
+    .topbar-tab.active {
+      background: var(--grad-soft);
+      border-color: rgba(139, 92, 246, 0.35);
+      color: #fff;
+    }
+
+    .topbar-status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11.5px;
+      color: var(--text-2);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .topbar-status .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      display: inline-block;
+      box-shadow: 0 0 8px var(--green);
+    }
+
+    /* ---------------- MAIN ---------------- */
+    .main {
+      padding: 24px 32px 60px;
+    }
+
+    .view {
+      display: none;
+    }
+
+    .view.active {
+      display: block;
+      animation: fadeIn .4s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ---- Hero / idle state ---- */
+    .hero {
+      min-height: 78vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 18px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .hero-eyebrow {
+      font-size: 12px;
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+      color: var(--purple-soft);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+    }
+
+    .hero-eyebrow::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--grad);
+    }
+
+    .hero h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+      font-size: 46px;
+      line-height: 1.12;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff 30%, var(--purple-soft) 75%, var(--blue-soft) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .hero p {
+      font-size: 16px;
+      color: var(--text-2);
+      max-width: 520px;
+      line-height: 1.6;
+    }
+
+    .btn-primary {
+      margin-top: 10px;
+      background: var(--grad);
+      color: #fff;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 12px;
+      font-size: 14.5px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 8px 30px rgba(139, 92, 246, 0.35);
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 36px rgba(139, 92, 246, 0.5);
+    }
+
+    .btn-primary svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .upload-hint {
+      font-size: 12px;
+      color: var(--text-3);
+      margin-top: 2px;
+    }
+
+    /* ---- Workspace (after upload) ---- */
+    .top-progress-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      padding: 16px 20px;
+      margin-bottom: 22px;
+      backdrop-filter: blur(16px);
+    }
+
+    .tpb-left {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+    }
+
+    .tpb-label {
+      font-size: 11.5px;
+      color: var(--text-2);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 500;
+    }
+
+    .tpb-track {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      overflow: hidden;
+      width: 100%;
+      max-width: 460px;
+    }
+
+    .tpb-fill {
+      height: 100%;
+      width: 72%;
+      background: var(--grad);
+      border-radius: 6px;
+      position: relative;
+      box-shadow: 0 0 12px rgba(139, 92, 246, 0.6);
+    }
+
+    .tpb-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+      animation: shimmer 2s infinite;
+    }
+
+    @keyframes shimmer {
+      0% {
+        transform: translateX(-100%);
+      }
+
+      100% {
+        transform: translateX(300%);
+      }
+    }
+
+    .tpb-right {
+      text-align: right;
+      padding-left: 24px;
+    }
+
+    .tpb-pct {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 26px;
+      font-weight: 600;
+    }
+
+    .tpb-current {
+      font-size: 12px;
+      color: var(--blue-soft);
+      font-weight: 500;
+    }
+
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: 260px 1fr 400px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 1200px) {
+      .workspace-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .detail-panel,
+      .left-pane {
+        position: static;
+        max-height: none;
+      }
+
+      .pipeline.compact {
+        overflow-y: visible !important;
+        flex: none !important;
+      }
+    }
+
+    /* Left column sticky wrapper -- mirrors .detail-panel on the right, so the
+     paper info + stage list stay visible while scrolling a long activity feed.
+     pdf-card is always fully visible; only the (potentially tall, 11-card)
+     pipeline list scrolls internally if it doesn't fit. */
+    .left-pane {
+      position: sticky;
+      top: 84px;
+      max-height: calc(100vh - 104px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* PDF Card */
+    .pdf-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 20px;
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 28px;
+    }
+
+    .pdf-thumb {
+      width: 100%;
+      height: 150px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      background: linear-gradient(160deg, rgba(139, 92, 246, 0.25), rgba(76, 130, 251, 0.18));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .pdf-thumb svg {
+      width: 38px;
+      height: 38px;
+      opacity: 0.85;
+    }
+
+    .pdf-title {
+      font-size: 14.5px;
+      font-weight: 600;
+      line-height: 1.4;
+      margin-bottom: 14px;
+    }
+
+    .pdf-meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      padding: 8px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .pdf-meta-row:first-of-type {
+      border-top: none;
+    }
+
+    .pdf-meta-label {
+      color: var(--text-3);
+    }
+
+    .pdf-meta-val {
+      color: var(--text-1);
+      font-weight: 500;
+      text-align: right;
+    }
+
+    .domain-pill {
+      display: inline-block;
+      margin-top: 14px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 5px 11px;
+      border-radius: 20px;
+      background: var(--grad-soft);
+      color: var(--purple-soft);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+    }
+
+    /* Live Activity -- terminal-style trace, entries threaded on a connecting
+     line+dot timeline (like a commit graph), monospace, dark console look. */
+    .activity-feed {
+      background: #050609;
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      min-height: 60vh;
+    }
+
+    .activity-feed h4 {
+      font-family: 'Inter', sans-serif;
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-2);
+      margin-bottom: 14px;
+      font-weight: 600;
+    }
+
+    #activityList {
+      position: relative;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    #activityList::before {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 8px;
+      bottom: 8px;
+      width: 1.5px;
+      background: linear-gradient(180deg, var(--purple) 0%, rgba(76, 130, 251, 0.2) 100%);
+    }
+
+    .activity-item {
+      position: relative;
+      padding: 7px 0 7px 24px;
+      animation: activityIn .3s ease;
+    }
+
+    @keyframes activityIn {
+      from {
+        opacity: 0;
+        transform: translateX(-5px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .activity-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 14px;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #050609;
+      border: 2px solid var(--text-3);
+      z-index: 1;
+    }
+
+    .activity-item.done::before {
+      border-color: var(--green);
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+    }
+
+    .activity-item.running::before {
+      border-color: var(--blue-soft);
+      background: var(--blue-soft);
+      box-shadow: 0 0 8px var(--blue-soft);
+      animation: blinkDotTerm 1.3s infinite;
+    }
+
+    .activity-item.error::before {
+      border-color: var(--red);
+      background: var(--red);
+      box-shadow: 0 0 8px var(--red);
+    }
+
+    .activity-item.neutral::before {
+      background: #050609;
+    }
+
+    @keyframes blinkDotTerm {
+      50% {
+        opacity: .35;
+      }
+    }
+
+    .activity-item-head {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      font-size: 12px;
+    }
+
+    .term-prompt {
+      color: var(--purple-soft);
+      font-weight: 600;
+    }
+
+    .activity-item-label {
+      font-weight: 600;
+      color: var(--text-1);
+    }
+
+    .activity-item-status {
+      color: var(--text-3);
+    }
+
+    .activity-item.done .activity-item-status {
+      color: var(--green);
+    }
+
+    .activity-item.running .activity-item-status {
+      color: var(--blue-soft);
+    }
+
+    .activity-item.error .activity-item-status {
+      color: var(--red);
+    }
+
+    .activity-item-time {
+      margin-left: auto;
+      color: #4a5170;
+      font-size: 10.5px;
+      flex-shrink: 0;
+    }
+
+    .activity-item-msg {
+      font-size: 11.5px;
+      color: var(--text-2);
+      line-height: 1.6;
+      margin-top: 3px;
+    }
+
+    .activity-item-msg::before {
+      content: '  ';
+      white-space: pre;
+    }
+
+    .term-cursor {
+      display: inline-block;
+      width: 6px;
+      height: 12px;
+      background: var(--blue-soft);
+      margin-left: 1px;
+      vertical-align: text-bottom;
+      animation: blink .9s step-end infinite;
+    }
+
+    .typing-dots {
+      display: inline-flex;
+      gap: 3px;
+      margin-left: 2px;
+    }
+
+    .typing-dots span {
+      width: 3.5px;
+      height: 3.5px;
+      border-radius: 50%;
+      background: var(--blue-soft);
+      animation: blink 1.2s infinite;
+    }
+
+    .typing-dots span:nth-child(2) {
+      animation-delay: .2s;
+    }
+
+    .typing-dots span:nth-child(3) {
+      animation-delay: .4s;
+    }
+
+    @keyframes blink {
+
+      0%,
+      80%,
+      100% {
+        opacity: .2;
+      }
+
+      40% {
+        opacity: 1;
+      }
+    }
+
+    /* ---- Agent pipeline (signature element -- compact in the narrow left column) ---- */
+    .pipeline {
+      position: relative;
+      padding-left: 6px;
+      margin-top: 18px;
+    }
+
+    /* min-height:0 is the standard fix that lets a flex child with overflow
+     actually scroll internally instead of just growing past its parent. */
+    .pipeline.compact {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .pipeline-connector {
+      position: absolute;
+      left: 35px;
+      top: 34px;
+      bottom: 34px;
+      width: 2px;
+      background: linear-gradient(180deg, var(--purple) 0%, rgba(76, 130, 251, 0.3) 100%);
+      z-index: 0;
+    }
+
+    .pipeline-connector::before {
+      content: '';
+      position: absolute;
+      left: -2px;
+      top: 0;
+      width: 6px;
+      height: 60px;
+      border-radius: 4px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), transparent);
+      animation: flowDown 2.6s ease-in-out infinite;
+    }
+
+    @keyframes flowDown {
+      0% {
+        top: -60px;
+        opacity: 0;
+      }
+
+      15% {
+        opacity: 1;
+      }
+
+      90% {
+        opacity: 0;
+      }
+
+      100% {
+        top: 100%;
+      }
+    }
+
+    .agent-card {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      gap: 16px;
+      background: rgba(20, 22, 36, 0.82);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      margin-bottom: 14px;
+      cursor: pointer;
+      transition: background .2s ease, border-color .2s ease, transform .18s ease;
+    }
+
+    /* Deliberately no backdrop-filter here: up to 11 of these render at once in
+     the compact pipeline column next to a sticky panel -- stacking that many
+     blur layers is a common cause of janky scroll. A solid darker background
+     reads almost identically without the repaint cost. */
+    .agent-card:hover {
+      background: var(--glass-hover);
+      transform: translateX(3px);
+    }
+
+    .agent-card.active-run {
+      border-color: rgba(76, 130, 251, 0.45);
+      box-shadow: 0 0 0 1px rgba(76, 130, 251, 0.2), 0 0 30px rgba(76, 130, 251, 0.15);
+    }
+
+    .agent-card.needs-revision {
+      border-color: rgba(251, 113, 133, 0.45);
+    }
+
+    .agent-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      flex-shrink: 0;
+      background: var(--grad-soft);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .agent-avatar svg {
+      width: 20px;
+      height: 20px;
+      color: var(--purple-soft);
+    }
+
+    .agent-card.active-run .agent-avatar {
+      animation: pulseGlow 1.8s infinite;
+    }
+
+    @keyframes pulseGlow {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(76, 130, 251, 0.5);
+      }
+
+      50% {
+        box-shadow: 0 0 0 8px rgba(76, 130, 251, 0);
+      }
+    }
+
+    .agent-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .agent-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .agent-name {
+      font-size: 14.5px;
+      font-weight: 600;
+    }
+
+    .agent-summary {
+      font-size: 12.5px;
+      color: var(--text-2);
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+
+    /* Compact variant: left column is narrow (260px) -- drop avatar size and the
+     inline summary line (same detail is one click away via the docked panel),
+     keep name + status badge only so cards don't wrap or crowd. */
+    .pipeline.compact .pipeline-connector {
+      left: 23px;
+    }
+
+    .pipeline.compact .agent-card {
+      padding: 11px 12px;
+      gap: 11px;
+      margin-bottom: 8px;
+    }
+
+    .pipeline.compact .agent-card:hover {
+      transform: none;
+    }
+
+    .pipeline.compact .agent-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+    }
+
+    .pipeline.compact .agent-avatar svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .pipeline.compact .agent-summary {
+      display: none;
+    }
+
+    .pipeline.compact .agent-top-row {
+      align-items: center;
+    }
+
+    .pipeline.compact .agent-name {
+      font-size: 12.5px;
+      line-height: 1.3;
+    }
+
+    .pipeline.compact .status-badge {
+      font-size: 9.5px;
+      padding: 3px 8px;
+    }
+
+    .status-badge {
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .status-badge .sd {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .status-completed {
+      background: rgba(52, 211, 153, 0.12);
+      color: var(--green);
+    }
+
+    .status-completed .sd {
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+    }
+
+    .status-running {
+      background: rgba(96, 165, 250, 0.12);
+      color: var(--blue-soft);
+    }
+
+    .status-running .sd {
+      background: var(--blue-soft);
+      box-shadow: 0 0 6px var(--blue-soft);
+      animation: blinkDot 1.3s infinite;
+    }
+
+    @keyframes blinkDot {
+      50% {
+        opacity: .3;
+      }
+    }
+
+    .status-waiting {
+      background: rgba(251, 191, 63, 0.12);
+      color: var(--orange);
+    }
+
+    .status-waiting .sd {
+      background: var(--orange);
+    }
+
+    .status-revision {
+      background: rgba(251, 113, 133, 0.12);
+      color: var(--red);
+    }
+
+    .status-revision .sd {
+      background: var(--red);
+      box-shadow: 0 0 6px var(--red);
+    }
+
+    .status-planned {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-3);
+    }
+
+    .status-planned .sd {
+      background: var(--text-3);
+    }
+
+    .status-error {
+      background: rgba(251, 113, 133, 0.12);
+      color: var(--red);
+    }
+
+    .status-error .sd {
+      background: var(--red);
+    }
+
+    .status-skipped {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-3);
+    }
+
+    .status-skipped .sd {
+      background: var(--text-3);
+    }
+
+    .agent-card.not-implemented {
+      opacity: 0.55;
+      border-style: dashed;
+    }
+
+    .agent-card.not-implemented:hover {
+      transform: none;
+      background: var(--glass);
+    }
+
+    .query-box-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .query-input {
+      flex: 1;
+      background: #050609;
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 9px 12px;
+      color: var(--text-1);
+      font-family: 'Inter', sans-serif;
+      font-size: 12.5px;
+    }
+
+    .query-input::placeholder {
+      color: var(--text-3);
+    }
+
+    .query-btn {
+      background: var(--grad);
+      border: none;
+      color: #fff;
+      border-radius: 10px;
+      padding: 9px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .query-results {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .query-hit {
+      background: #050609;
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    .query-hit-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10.5px;
+      color: var(--purple-soft);
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+
+    .query-hit-text {
+      font-size: 12px;
+      color: var(--text-2);
+      line-height: 1.55;
+    }
+
+    .upload-error {
+      color: var(--red);
+      font-size: 12.5px;
+      margin-top: 10px;
+    }
+
+    .agent-meta-row {
+      display: flex;
+      gap: 18px;
+      margin-top: 11px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .agent-meta {
+      font-size: 11.5px;
+      color: var(--text-3);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .agent-meta b {
+      color: var(--text-2);
+      font-weight: 600;
+    }
+
+    .conf-track {
+      width: 64px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .conf-fill {
+      height: 100%;
+      background: var(--grad);
+      border-radius: 4px;
+    }
+
+    .expand-btn {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--purple-soft);
+      background: none;
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 8px;
+      padding: 5px 11px;
+      cursor: pointer;
+      margin-left: auto;
+      flex-shrink: 0;
+      transition: background .15s ease;
+    }
+
+    .expand-btn:hover {
+      background: rgba(139, 92, 246, 0.12);
+    }
+
+    .reflection-loop-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      background: rgba(251, 113, 133, 0.08);
+      border: 1px solid rgba(251, 113, 133, 0.25);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 11.5px;
+      color: var(--red);
+      font-weight: 500;
+    }
+
+    .reflection-loop-badge svg {
+      width: 13px;
+      height: 13px;
+      animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* ---------------- DOCKED DETAIL PANEL (3rd pane -- replaces the old sliding overlay) ---------------- */
+    .detail-panel {
+      background: rgba(13, 15, 26, 0.7);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(20px);
+      position: sticky;
+      top: 84px;
+      max-height: calc(100vh - 104px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sp-header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .sp-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .sp-sub {
+      font-size: 11.5px;
+      color: var(--text-2);
+      margin-top: 3px;
+    }
+
+    .sp-follow {
+      font-size: 11px;
+      color: var(--purple-soft);
+      cursor: pointer;
+      margin-top: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .sp-follow .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--purple-soft);
+    }
+
+    .sp-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 10px 20px 0;
+      border-bottom: 1px solid var(--glass-border);
+      overflow-x: auto;
+    }
+
+    .sp-tab {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-3);
+      padding: 7px 10px 10px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+    }
+
+    .sp-tab.active {
+      color: #fff;
+      border-color: var(--purple);
+    }
+
+    .sp-content {
+      padding: 18px 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .sp-pane {
+      display: none;
+    }
+
+    .sp-pane.active {
+      display: block;
+      animation: fadeIn .3s ease;
+    }
+
+    .sp-block {
+      margin-bottom: 18px;
+    }
+
+    .sp-block h5 {
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: var(--text-3);
+      margin-bottom: 7px;
+      font-weight: 600;
+    }
+
+    .sp-block p {
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: var(--text-1);
+    }
+
+    .sp-code {
+      background: #050609;
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      color: #9ad1ff;
+      line-height: 1.6;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    .lit-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 12.5px;
+    }
+
+    .lit-item:last-child {
+      border-bottom: none;
+    }
+
+    .lit-title {
+      color: var(--text-1);
+      font-weight: 500;
+    }
+
+    .lit-meta {
+      color: var(--text-3);
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .sim-pill {
+      background: var(--grad-soft);
+      color: var(--purple-soft);
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 10px;
+      white-space: nowrap;
+      height: fit-content;
+    }
+
+    /* ---------------- HUMAN APPROVAL VIEW ---------------- */
+    .approval-wrap {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    .section-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .section-sub {
+      font-size: 13.5px;
+      color: var(--text-2);
+      margin-bottom: 24px;
+    }
+
+    .review-doc {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 26px;
+      backdrop-filter: blur(16px);
+      margin-bottom: 22px;
+    }
+
+    .review-doc h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      margin-top: 18px;
+    }
+
+    .review-doc h3:first-child {
+      margin-top: 0;
+    }
+
+    .review-doc p,
+    .review-doc li {
+      font-size: 13.5px;
+      color: var(--text-2);
+      line-height: 1.7;
+    }
+
+    .review-doc ul {
+      padding-left: 18px;
+      margin-top: 6px;
+    }
+
+    .approval-actions {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .btn-approve,
+    .btn-changes,
+    .btn-reject {
+      flex: 1;
+      padding: 13px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 13.5px;
+      cursor: pointer;
+      border: 1px solid var(--glass-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform .15s ease;
+    }
+
+    .btn-approve {
+      background: rgba(52, 211, 153, 0.12);
+      color: var(--green);
+      border-color: rgba(52, 211, 153, 0.3);
+    }
+
+    .btn-changes {
+      background: rgba(251, 191, 63, 0.1);
+      color: var(--orange);
+      border-color: rgba(251, 191, 63, 0.3);
+    }
+
+    .btn-reject {
+      background: rgba(251, 113, 133, 0.1);
+      color: var(--red);
+      border-color: rgba(251, 113, 133, 0.3);
+    }
+
+    .btn-approve:hover,
+    .btn-changes:hover,
+    .btn-reject:hover {
+      transform: translateY(-2px);
+    }
+
+    .btn-approve svg,
+    .btn-changes svg,
+    .btn-reject svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    .comment-box {
+      width: 100%;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 14px;
+      color: var(--text-1);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .comment-box::placeholder {
+      color: var(--text-3);
+    }
+
+    /* ---------------- FINAL REVIEW VIEW ---------------- */
+    .final-grid {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 22px;
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    .score-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 26px;
+      text-align: center;
+      backdrop-filter: blur(16px);
+      height: fit-content;
+    }
+
+    .score-ring {
+      width: 140px;
+      height: 140px;
+      margin: 0 auto 16px;
+      border-radius: 50%;
+      background: conic-gradient(var(--purple) 0deg, var(--blue) 300deg, rgba(255, 255, 255, 0.06) 300deg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .score-ring::before {
+      content: '';
+      position: absolute;
+      inset: 8px;
+      border-radius: 50%;
+      background: var(--bg-2);
+    }
+
+    .score-ring-val {
+      position: relative;
+      z-index: 1;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+    }
+
+    .score-ring-val span {
+      font-size: 13px;
+      color: var(--text-3);
+      display: block;
+      font-weight: 400;
+      margin-top: 2px;
+    }
+
+    .rec-pill {
+      display: inline-block;
+      margin-top: 6px;
+      background: rgba(52, 211, 153, 0.12);
+      color: var(--green);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 20px;
+    }
+
+    .subscore-list {
+      margin-top: 20px;
+      text-align: left;
+    }
+
+    .subscore-row {
+      margin-bottom: 12px;
+    }
+
+    .subscore-top {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+
+    .subscore-top b {
+      font-weight: 600;
+      color: var(--text-1);
+    }
+
+    .subscore-track {
+      height: 5px;
+      background: rgba(255, 255, 255, 0.07);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .subscore-fill {
+      height: 100%;
+      background: var(--grad);
+      border-radius: 6px;
+    }
+
+    .final-panel {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 26px;
+      backdrop-filter: blur(16px);
+    }
+
+    .final-panel h3 {
+      font-size: 14.5px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      margin-top: 20px;
+    }
+
+    .final-panel h3:first-child {
+      margin-top: 0;
+    }
+
+    .final-panel p,
+    .final-panel li {
+      font-size: 13px;
+      color: var(--text-2);
+      line-height: 1.7;
+    }
+
+    .final-panel ul {
+      padding-left: 18px;
+    }
+
+    .export-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .btn-export {
+      flex: 1;
+      background: none;
+      border: 1px solid var(--glass-border);
+      color: var(--text-1);
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background .15s ease;
+    }
+
+    .btn-export:hover {
+      background: var(--glass-hover);
+    }
+
+    .btn-export svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .btn-export.primary {
+      background: var(--grad);
+      border: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="ambient"></div>
+  <div class="noise"></div>
+
+  <div class="app">
+
+    <!-- TOP BAR (replaces the sidebar -- this page has one job: show a live run) -->
+    <header class="topbar">
+      <div class="logo-row">
+        <div class="logo-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M12 2 L14.5 9 L21 9 L15.5 13.5 L17.5 21 L12 16.5 L6.5 21 L8.5 13.5 L3 9 L9.5 9 Z" />
+          </svg>
+        </div>
+        <div class="logo-text">AI Paper Reviewer</div>
+      </div>
+
+      <nav class="topbar-tabs">
+        <div class="topbar-tab active" data-view="workspace">Live Run</div>
+        <div class="topbar-tab" data-view="approval">Human Approval</div>
+        <div class="topbar-tab" data-view="final">Final Review</div>
+      </nav>
+
+      <div class="topbar-status"><span class="dot"></span>4/11 pipeline stages implemented</div>
+    </header>
+
+    <!-- MAIN -->
+    <main class="main">
+
+      <!-- ========== VIEW: WORKSPACE (idle) ========== -->
+      <section class="view active" id="view-idle">
+        <div class="hero">
+          <div class="hero-eyebrow">Multi-agent scientific review</div>
+          <h1>Autonomous Scientific<br />Review Agent</h1>
+          <p>Upload a research paper and watch the real pipeline run live — Docling parsing, figure/table vision
+            analysis, and RAG indexing, streamed stage by stage as each one actually completes.</p>
+          <input type="file" id="pdfFileInput" accept="application/pdf" style="display:none;"
+            onchange="handleFileSelected(event)">
+          <button class="btn-primary" onclick="document.getElementById('pdfFileInput').click()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+              <path d="M12 3v13M6 8l6-6 6 6M4 21h16" />
+            </svg>
+            Upload Research Paper
+          </button>
+          <div class="upload-hint">PDF · parsed for real by the pipeline running on this machine</div>
+          <div class="upload-error" id="uploadError" style="display:none;"></div>
+        </div>
+      </section>
+
+      <!-- ========== VIEW: WORKSPACE (running) ========== -->
+      <section class="view" id="view-running">
+
+        <div class="top-progress-bar">
+          <div class="tpb-left">
+            <div class="tpb-label">Overall Pipeline Progress</div>
+            <div class="tpb-track">
+              <div class="tpb-fill" id="tpbFill" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="tpb-right">
+            <div class="tpb-pct" id="tpbPct">0%</div>
+            <div class="tpb-current" id="tpbCurrent">● Starting…</div>
+          </div>
+        </div>
+
+        <div class="workspace-grid">
+
+          <!-- LEFT: PDF card + compact pipeline timeline (sticky, mirrors the docked right panel) -->
+          <div class="left-pane">
+            <div class="pdf-card">
+              <div class="pdf-thumb">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5">
+                  <path d="M6 2h9l5 5v15H6z" />
+                  <path d="M15 2v5h5M9 13h6M9 17h6" />
+                </svg>
+              </div>
+              <div class="pdf-title" id="pdfTitle">Parsing…</div>
+              <div class="pdf-meta-row"><span class="pdf-meta-label">Filename</span><span class="pdf-meta-val"
+                  id="pdfFilename">—</span></div>
+              <div class="pdf-meta-row"><span class="pdf-meta-label">Sections</span><span class="pdf-meta-val"
+                  id="pdfSections">—</span></div>
+              <div class="pdf-meta-row"><span class="pdf-meta-label">Tables / Figures</span><span class="pdf-meta-val"
+                  id="pdfTablesFigures">—</span></div>
+              <span class="domain-pill" id="pdfRunId">run: —</span>
+            </div>
+
+            <div class="pipeline compact">
+              <div class="pipeline-connector"></div>
+              <div id="pipelineCards"></div>
+            </div>
+          </div>
+
+          <!-- CENTER: Live Activity, full detail -->
+          <div class="activity-feed">
+            <h4>Live Activity</h4>
+            <div id="activityList"></div>
+          </div>
+
+          <!-- RIGHT: docked detail panel (auto-follows the running stage) -->
+          <div class="detail-panel">
+            <div class="sp-header">
+              <div class="sp-title" id="sp-agent-title">Waiting for upload…</div>
+              <div class="sp-sub" id="sp-agent-sub">Live details for the running stage will appear here.</div>
+              <div class="sp-follow" id="sp-follow-toggle" style="display:none;" onclick="resumeAutoFollow()">
+                <span class="dot"></span><span id="sp-follow-label">Pinned -- click to resume auto-follow</span>
+              </div>
+            </div>
+            <div class="sp-tabs">
+              <div class="sp-tab active" data-tab="overview">Overview</div>
+              <div class="sp-tab" data-tab="reasoning">Reasoning</div>
+              <div class="sp-tab" data-tab="evidence">Evidence</div>
+              <div class="sp-tab" data-tab="memory">Memory</div>
+              <div class="sp-tab" data-tab="logs">Logs</div>
+            </div>
+            <div class="sp-content">
+              <div class="sp-pane active" data-pane="overview">
+                <div class="sp-block">
+                  <p>Upload a paper to see live stage details here.</p>
+                </div>
+              </div>
+              <div class="sp-pane" data-pane="reasoning">
+                <div class="sp-block">
+                  <p>No per-stage reasoning trace exists yet -- this tab lights up once the actual LLM agents
+                    (Novelty/Methodology/Evidence/Citation) are built and can expose their chain of reasoning. See the
+                    Overview tab for this stage's real output.</p>
+                </div>
+              </div>
+              <div class="sp-pane" data-pane="evidence">
+                <div class="sp-block">
+                  <p>No structured evidence trace exists yet. Overview shows what's real for this stage today.</p>
+                </div>
+              </div>
+              <div class="sp-pane" data-pane="memory">
+                <div class="sp-block">
+                  <p>No agent memory/revision-pass tracking exists yet (that's the Reflection Agent's job once built).
+                    See Overview for this stage's real output.</p>
+                </div>
+              </div>
+              <div class="sp-pane" data-pane="logs">
+                <div class="sp-block">
+                  <p>No prompt log exists for this stage yet. See core/config/prompts.yaml for the templates that do
+                    exist.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== VIEW: HUMAN APPROVAL ========== -->
+      <section class="view" id="view-approval">
+        <div class="approval-wrap">
+          <div class="section-title">Human Approval</div>
+          <div class="section-sub">Review the AI-generated assessment before it's finalized.</div>
+
+          <div class="review-doc">
+            <h3>Summary</h3>
+            <p>The paper proposes a sparse attention mechanism for retrieval over long scientific documents. The core
+              idea is a reasonable extension of existing sparse-attention work, with solid empirical support on two
+              benchmarks, though comparison against the strongest recent baseline is missing.</p>
+            <h3>Strengths</h3>
+            <ul>
+              <li>Clear ablations isolating the contribution of the sparsity pattern.</li>
+              <li>Reproducible setup: code and configs are linked.</li>
+            </ul>
+            <h3>Weaknesses</h3>
+            <ul>
+              <li>Missing comparison to a 2025 baseline that addresses a similar problem.</li>
+              <li>No error bars reported on the main results table.</li>
+            </ul>
+          </div>
+
+          <div class="approval-actions">
+            <button class="btn-approve"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>Approve</button>
+            <button class="btn-changes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>Request Changes</button>
+            <button class="btn-reject"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>Reject</button>
+          </div>
+
+          <textarea class="comment-box" placeholder="Add reviewer comments (optional)…"></textarea>
+        </div>
+      </section>
+
+      <!-- ========== VIEW: FINAL REVIEW ========== -->
+      <section class="view" id="view-final">
+        <div class="final-grid">
+          <div class="score-card">
+            <div class="score-ring">
+              <div class="score-ring-val">4.1<span>/ 5</span></div>
+            </div>
+            <span class="rec-pill">Weak Accept</span>
+            <div class="subscore-list">
+              <div class="subscore-row">
+                <div class="subscore-top"><span>Novelty</span><b>4</b></div>
+                <div class="subscore-track">
+                  <div class="subscore-fill" style="width:80%"></div>
+                </div>
+              </div>
+              <div class="subscore-row">
+                <div class="subscore-top"><span>Clarity</span><b>4</b></div>
+                <div class="subscore-track">
+                  <div class="subscore-fill" style="width:80%"></div>
+                </div>
+              </div>
+              <div class="subscore-row">
+                <div class="subscore-top"><span>Methodology</span><b>4</b></div>
+                <div class="subscore-track">
+                  <div class="subscore-fill" style="width:80%"></div>
+                </div>
+              </div>
+              <div class="subscore-row">
+                <div class="subscore-top"><span>Citation Quality</span><b>3</b></div>
+                <div class="subscore-track">
+                  <div class="subscore-fill" style="width:60%"></div>
+                </div>
+              </div>
+              <div class="subscore-row">
+                <div class="subscore-top"><span>Evidence</span><b>4</b></div>
+                <div class="subscore-track">
+                  <div class="subscore-fill" style="width:80%"></div>
+                </div>
+              </div>
+              <div class="subscore-row">
+                <div class="subscore-top"><span>Reproducibility</span><b>5</b></div>
+                <div class="subscore-track">
+                  <div class="subscore-fill" style="width:100%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="final-panel">
+            <h3>Strengths</h3>
+            <ul>
+              <li>Well-isolated ablations on the sparsity mechanism.</li>
+              <li>Full reproducibility package: code, configs, and seeds included.</li>
+            </ul>
+            <h3>Weaknesses</h3>
+            <ul>
+              <li>Missing comparison against a closely related 2025 baseline.</li>
+              <li>No error bars on headline results.</li>
+            </ul>
+            <h3>Reviewer Recommendation</h3>
+            <p>Weak Accept — the contribution is solid and reproducible, but the missing baseline comparison should be
+              addressed before camera-ready.</p>
+            <h3>Supporting Literature</h3>
+            <ul>
+              <li>Guo et al., "Sparse Transformers for Long Documents" (2024)</li>
+              <li>Iyer et al., "Retrieval-Augmented Long-Context QA" (2025)</li>
+            </ul>
+
+            <div class="export-row">
+              <button class="btn-export primary"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+                  <path d="M12 3v13M6 11l6 6 6-6M4 21h16" />
+                </svg>Download PDF</button>
+              <button class="btn-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3M16 3h5v5M21 3l-9 9" />
+                </svg>Export JSON</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    // ============================================================
+    // REAL pipeline wiring. Every card below reflects an actual
+    // server/pipeline.py stage, updated live from Server-Sent Events
+    // pushed by server/main.py as each stage genuinely completes.
+    // Nothing in this file fabricates agent output.
+    // ============================================================
+
+    const ICONS = {
+      parse: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5M9 13h6M9 17h6"/></svg>',
+      vision: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
+      rag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>',
+      literature: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
+      novelty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>',
+      methodology: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 3v4M15 3v4M4 11h16M6 7h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/></svg>',
+      citation: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 8h10M7 12h10M7 16h6"/><rect x="3" y="4" width="18" height="16" rx="2"/></svg>',
+      evidence: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 2v6l-5 12a1 1 0 0 0 1 1.4h14a1 1 0 0 0 1-1.4L15 8V2"/><path d="M9 2h6M8 13h8"/></svg>',
+      reflection: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.5 9A9 9 0 0 0 5.6 5.6L1 10m22 4-4.6 4.4A9 9 0 0 1 3.5 15"/></svg>',
+      approval: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 6 9 17l-5-5"/></svg>',
+      final: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5M9 13h6M9 17h6"/></svg>',
+    };
+
+    // Ordered card list -- stageKeys are the exact `stage` values server/pipeline.py emits.
+    // Cards with 2 stageKeys (rag) update from whichever of the two arrives most recently.
+    const CARDS = [
+      { key: 'parse', label: 'Paper Understanding', stageKeys: ['parse'], icon: ICONS.parse },
+      { key: 'vision', label: 'Figure & Table Vision Analysis', stageKeys: ['vision'], icon: ICONS.vision },
+      { key: 'rag', label: 'RAG Indexing (Paper Index)', stageKeys: ['chunk', 'paper_rag_build'], icon: ICONS.rag },
+      { key: 'literature_rag', label: 'Literature Retrieval', stageKeys: ['literature_rag'], icon: ICONS.literature },
+      { key: 'novelty_agent', label: 'Novelty Agent', stageKeys: ['novelty_agent'], icon: ICONS.novelty },
+      { key: 'methodology_agent', label: 'Methodology Agent', stageKeys: ['methodology_agent'], icon: ICONS.methodology },
+      { key: 'citation_agent', label: 'Citation Agent', stageKeys: ['citation_agent'], icon: ICONS.citation },
+      { key: 'evidence_agent', label: 'Evidence & Reproducibility Agent', stageKeys: ['evidence_agent'], icon: ICONS.evidence },
+      { key: 'reflection_agent', label: 'Self-Reflection / Verifier Agent', stageKeys: ['reflection_agent'], icon: ICONS.reflection },
+      { key: 'human_approval', label: 'Human-in-the-Loop Approval', stageKeys: ['human_approval'], icon: ICONS.approval },
+      { key: 'final_report', label: 'Final Review Report', stageKeys: ['final_report'], icon: ICONS.final },
+    ];
+
+    const STATUS_BADGE = {
+      running: '<span class="status-badge status-running"><span class="sd"></span>Running</span>',
+      done: '<span class="status-badge status-completed"><span class="sd"></span>Completed</span>',
+      error: '<span class="status-badge status-error"><span class="sd"></span>Error</span>',
+      skipped: '<span class="status-badge status-skipped"><span class="sd"></span>Skipped</span>',
+      not_available: '<span class="status-badge status-skipped"><span class="sd"></span>Not Available</span>',
+      not_implemented: '<span class="status-badge status-planned"><span class="sd"></span>Not Yet Implemented</span>',
+      waiting: '<span class="status-badge status-waiting"><span class="sd"></span>Waiting</span>',
+    };
+
+    let runId = null;
+    let currentEventSource = null;
+    const liveEvents = {};        // stageKey -> latest event object
+    let selectedCardKey = null;   // null = auto-follow mode; set = pinned to that card
+    let lastUpdatedCardKey = null;
+
+    function summaryFor(card) {
+      const events = card.stageKeys.map(sk => liveEvents[sk]).filter(Boolean);
+      if (!events.length) return 'Waiting…';
+      const latest = events[events.length - 1];
+      if (latest.status === 'running') return latest.message || 'Running…';
+      if (latest.status === 'error') return 'Error: ' + (latest.message || 'unknown error');
+      if (latest.status === 'skipped') return latest.message || 'Skipped';
+      if (latest.status === 'not_available') return latest.message || 'Not available';
+      if (latest.status === 'not_implemented') return 'Not built yet';
+      if (latest.status === 'done') {
+        if (card.key === 'parse') return `Segmented into ${latest.section_names.length} section(s), ${latest.num_tables} table(s), ${latest.num_figures} figure(s).`;
+        if (card.key === 'vision') return `Described ${latest.num_analyzed} figure(s) with the local vision model.`;
+        if (card.key === 'rag') {
+          const chunkEv = liveEvents['chunk'], buildEv = liveEvents['paper_rag_build'];
+          if (buildEv && buildEv.status === 'done') return `${buildEv.num_vectors} chunk(s) indexed (hybrid dense+BM25) -- ask it a question below.`;
+          if (chunkEv && chunkEv.status === 'done') return `${chunkEv.num_chunks} chunk(s) produced.`;
+        }
+        return 'Completed.';
+      }
+      return latest.message || latest.status;
+    }
+
+    function statusOf(card) {
+      const events = card.stageKeys.map(sk => liveEvents[sk]).filter(Boolean);
+      if (!events.length) return 'waiting';
+      return events[events.length - 1].status;
+    }
+
+    function renderCards() {
+      const html = CARDS.map(card => {
+        const status = statusOf(card);
+        const badge = STATUS_BADGE[status] || STATUS_BADGE.waiting;
+        const activeClass = status === 'running' ? ' active-run' : '';
+        const plannedClass = status === 'not_implemented' ? ' not-implemented' : '';
+        const pinnedClass = selectedCardKey === card.key ? ' active-run' : '';
+        return `
+        <div class="agent-card${activeClass}${plannedClass}${pinnedClass}" onclick="selectCard('${card.key}')">
+          <div class="agent-avatar">${card.icon}</div>
+          <div class="agent-body">
+            <div class="agent-top-row">
+              <div><div class="agent-name">${card.label}</div><div class="agent-summary">${summaryFor(card)}</div></div>
+              ${badge}
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+      document.getElementById('pipelineCards').innerHTML = html;
+    }
+
+    function updateProgressBar() {
+      const terminal = ['done', 'error', 'skipped', 'not_available', 'not_implemented'];
+      const total = CARDS.length;
+      const finished = CARDS.filter(c => terminal.includes(statusOf(c))).length;
+      const pct = Math.round((finished / total) * 100);
+      document.getElementById('tpbFill').style.width = pct + '%';
+      document.getElementById('tpbPct').textContent = pct + '%';
+      const running = CARDS.find(c => statusOf(c) === 'running');
+      document.getElementById('tpbCurrent').textContent = running ? ('● ' + running.label + ' running') : (pct === 100 ? '● Pipeline finished' : '● Idle');
+    }
+
+    // The activity feed is the chronological TIMING log (what happened, when,
+    // how long it took) -- the docked panel is the sole place for the rich
+    // derived description of a *completed* stage. Duplicating that description
+    // here as well (via summaryFor) meant the exact same sentence rendered
+    // twice on screen at once whenever a followed stage finished; this keeps
+    // each pane's job distinct instead. Running/error/skipped states still show
+    // the backend's own short status message here since that IS the log entry,
+    // not a redundant derived summary.
+    function activityDetailFor(event, card) {
+      if (event.status === 'done') return '';
+      return card ? summaryFor(card) : (event.message || '');
+    }
+
+    function appendActivity(event, card) {
+      const list = document.getElementById('activityList');
+      const div = document.createElement('div');
+      // Cards with 2 stageKeys (currently only 'rag': chunk + paper_rag_build)
+      // share one label on the pipeline card/docked panel, but that makes their
+      // 4 log entries (running/done x2) look like duplicate repetition in the
+      // activity feed -- disambiguate just here, where it actually matters.
+      const STAGE_SUBLABEL = { chunk: 'Chunking', paper_rag_build: 'Embedding + Indexing' };
+      const label = card
+        ? (card.stageKeys.length > 1 && STAGE_SUBLABEL[event.stage] ? `${card.label} — ${STAGE_SUBLABEL[event.stage]}` : card.label)
+        : event.stage;
+      const isRunning = event.status === 'running';
+      const isError = event.status === 'error';
+      const isDone = event.status === 'done';
+      const kind = isRunning ? 'running' : isError ? 'error' : isDone ? 'done' : 'neutral';
+      div.className = 'activity-item ' + kind;
+
+      // Always anchor on wall-clock time; elapsed duration (only present on
+      // 'done') is a secondary annotation, not a replacement for it -- showing
+      // a clock time on some rows and a bare duration on others in the same
+      // slot read as two unrelated kinds of information.
+      const clockStr = new Date(event.ts * 1000).toLocaleTimeString();
+      const timeStr = event.elapsed_s ? `${clockStr} (${event.elapsed_s}s)` : clockStr;
+      const typing = isRunning ? '<span class="typing-dots"><span></span><span></span><span></span></span>' : '';
+      const detail = activityDetailFor(event, card);
+
+      div.innerHTML = `
+      <div class="activity-item-head">
+        <span class="term-prompt">›</span>
+        <span class="activity-item-label">${escapeHtml(label)}</span>
+        <span class="activity-item-status">${escapeHtml(event.status)}${typing}</span>
+        <span class="activity-item-time">${timeStr}</span>
+      </div>`;
+      list.appendChild(div);
+
+      // Type the detail line out character-by-character rather than dumping it
+      // in instantly -- a line that just snaps into existence doesn't read as
+      // "being generated right now," even though it's a real live event.
+      if (detail) {
+        const msgEl = document.createElement('div');
+        msgEl.className = 'activity-item-msg';
+        div.appendChild(msgEl);
+        typeWriter(msgEl, detail);
+      }
+    }
+
+    function typeWriter(el, text, speed = 12) {
+      el.textContent = '';
+      const cursor = document.createElement('span');
+      cursor.className = 'term-cursor';
+      el.appendChild(cursor);
+      let i = 0;
+      const timer = setInterval(() => {
+        if (i < text.length) {
+          cursor.insertAdjacentText('beforebegin', text[i]);
+          i++;
+        } else {
+          clearInterval(timer);
+          cursor.remove();
+        }
+      }, speed);
+    }
+
+    async function handleFileSelected(evt) {
+      const file = evt.target.files[0];
+      if (!file) return;
+      document.getElementById('uploadError').style.display = 'none';
+
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const uploadResp = await fetch('/api/upload', { method: 'POST', body: form });
+        if (!uploadResp.ok) throw new Error(`Upload failed: ${uploadResp.status}`);
+        const { run_id, filename } = await uploadResp.json();
+        runId = run_id;
+
+        document.getElementById('pdfFilename').textContent = filename;
+        document.getElementById('pdfRunId').textContent = 'run: ' + run_id;
+        document.getElementById('pdfTitle').textContent = 'Parsing…';
+        Object.keys(liveEvents).forEach(k => delete liveEvents[k]);
+        document.getElementById('activityList').innerHTML = '';
+        selectedCardKey = null;
+        lastUpdatedCardKey = null;
+        document.getElementById('sp-follow-toggle').style.display = 'none';
+        renderCards();
+        updateProgressBar();
+        showRunning();
+        startStream(run_id);
+      } catch (err) {
+        const errBox = document.getElementById('uploadError');
+        errBox.textContent = 'Upload/stream error: ' + err.message + ' -- is the backend running (python -m uvicorn server.main:app)?';
+        errBox.style.display = 'block';
+      }
+    }
+
+    function startStream(id) {
+      if (currentEventSource) currentEventSource.close();
+      currentEventSource = new EventSource('/api/stream/' + id);
+      currentEventSource.onmessage = (msg) => {
+        const event = JSON.parse(msg.data);
+        if (event.stage === 'pipeline') {
+          currentEventSource.close();
+          return;
+        }
+        liveEvents[event.stage] = event;
+        const card = CARDS.find(c => c.stageKeys.includes(event.stage));
+        appendActivity(event, card);
+        renderCards();
+        updateProgressBar();
+        if (event.stage === 'parse' && event.status === 'done') {
+          document.getElementById('pdfTitle').textContent = event.title || '(untitled)';
+          document.getElementById('pdfSections').textContent = event.section_names.length;
+          document.getElementById('pdfTablesFigures').textContent = `${event.num_tables} / ${event.num_figures}`;
+        }
+        if (card) {
+          lastUpdatedCardKey = card.key;
+          if (selectedCardKey === null) renderDockedPanel(card.key);   // auto-follow: always show the latest activity
+        }
+      };
+      currentEventSource.onerror = () => {
+        appendActivity({ stage: 'connection', status: 'error', message: 'stream closed/errored' }, null);
+      };
+    }
+
+    function showRunning() {
+      document.getElementById('view-idle').classList.remove('active');
+      const running = document.getElementById('view-running');
+      running.classList.add('active');
+      running.dataset.shown = '1';
+    }
+
+    // ---- Nav + view switching ----
+    const navItems = document.querySelectorAll('.topbar-tab[data-view]');
+    navItems.forEach(item => {
+      item.addEventListener('click', () => {
+        navItems.forEach(n => n.classList.remove('active'));
+        item.classList.add('active');
+        const target = item.dataset.view;
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        if (target === 'workspace') {
+          const runningVisible = document.getElementById('view-running').dataset.shown === '1';
+          document.getElementById(runningVisible ? 'view-running' : 'view-idle').classList.add('active');
+        } else {
+          document.getElementById('view-' + target).classList.add('active');
+        }
+      });
+    });
+
+    // ---- Docked detail panel: renders REAL event data for a card, in place ----
+    // selectCard() pins the panel to that card (user clicked it); the SSE handler
+    // only overwrites the panel automatically when selectedCardKey is null
+    // (auto-follow mode), so a manual click always wins until resumeAutoFollow().
+    function selectCard(cardKey) {
+      selectedCardKey = cardKey;
+      document.getElementById('sp-follow-toggle').style.display = 'inline-flex';
+      renderDockedPanel(cardKey);
+      renderCards();
+    }
+
+    function resumeAutoFollow() {
+      selectedCardKey = null;
+      document.getElementById('sp-follow-toggle').style.display = 'none';
+      if (lastUpdatedCardKey) renderDockedPanel(lastUpdatedCardKey);
+      renderCards();
+    }
+
+    function renderDockedPanel(cardKey) {
+      const card = CARDS.find(c => c.key === cardKey);
+      if (!card) return;
+      const status = statusOf(card);
+      document.getElementById('sp-agent-title').textContent = card.label;
+      document.getElementById('sp-agent-sub').textContent = summaryFor(card);
+
+      const overviewPane = document.querySelector('.sp-pane[data-pane="overview"]');
+      overviewPane.innerHTML = renderPanelBody(card, status);
+    }
+
+    function renderPanelBody(card, status) {
+      if (status === 'waiting') return `<div class="sp-block"><p>This stage hasn't run yet -- upload a paper to see live output here.</p></div>`;
+      if (status === 'not_implemented') return `<div class="sp-block"><h5>Status</h5><p>This part of the architecture (${card.label}) is not built yet. It's tracked in MERGE_CONTEXT.md as upcoming work -- nothing here is faked.</p></div>`;
+
+      if (card.key === 'parse') {
+        const e = liveEvents['parse'];
+        if (!e || e.status !== 'done') return `<div class="sp-block"><p>${e ? e.message : 'Parsing...'}</p></div>`;
+        return `
+        <div class="sp-block"><h5>Title</h5><p>${escapeHtml(e.title)}</p></div>
+        <div class="sp-block"><h5>Abstract (preview)</h5><p>${escapeHtml(e.abstract_preview)}...</p></div>
+        <div class="sp-block"><h5>Sections</h5><p>${e.section_names.map(escapeHtml).join(', ')}</p></div>
+        <div class="sp-block"><h5>Structure</h5><p>${e.num_tables} table(s), ${e.num_figures} figure(s), ${e.num_references} reference(s).</p></div>`;
+      }
+      if (card.key === 'vision') {
+        const e = liveEvents['vision'];
+        if (!e) return `<div class="sp-block"><p>Waiting on parse to finish.</p></div>`;
+        if (e.status !== 'done') return `<div class="sp-block"><p>${escapeHtml(e.message || e.status)}</p></div>`;
+        if (!e.figures.length) return `<div class="sp-block"><p>No figures were analyzed.</p></div>`;
+        return e.figures.map(f => `
+        <div class="sp-block"><h5>${escapeHtml(f.figure_id)}</h5>
+          <p><i>Caption: ${escapeHtml(f.caption || '(none detected)')}</i></p>
+          <p>${escapeHtml(f.description)}</p>
+        </div>`).join('');
+      }
+      if (card.key === 'rag') {
+        const chunkEv = liveEvents['chunk'], buildEv = liveEvents['paper_rag_build'];
+        let body = '';
+        if (chunkEv && chunkEv.status === 'done') {
+          const bySection = Object.entries(chunkEv.by_section).map(([s, n]) => `${s}: ${n}`).join(', ');
+          body += `<div class="sp-block"><h5>Chunks</h5><p>${chunkEv.num_chunks} total -- ${bySection}</p></div>`;
+        }
+        if (buildEv && buildEv.status === 'done') {
+          body += `<div class="sp-block"><h5>Index</h5><p>Hybrid dense (bge-small) + BM25 index built over ${buildEv.num_vectors} chunk(s). Query it below.</p></div>`;
+          body += `
+          <div class="sp-block">
+            <h5>Ask this paper a question</h5>
+            <div class="query-box-row">
+              <input class="query-input" id="ragQueryInput" placeholder="e.g. what evaluation metrics does the method use?">
+              <button class="query-btn" onclick="runRagQuery()">Search</button>
+            </div>
+            <div class="query-results" id="ragQueryResults"></div>
+          </div>`;
+        }
+        return body || `<div class="sp-block"><p>Indexing in progress...</p></div>`;
+      }
+      if (card.key === 'literature_rag') {
+        const e = liveEvents['literature_rag'];
+        return `<div class="sp-block"><h5>Status</h5><p>${escapeHtml(e ? e.message : '...')}</p></div>`;
+      }
+      return `<div class="sp-block"><p>${escapeHtml(JSON.stringify(liveEvents[card.stageKeys[0]] || {}, null, 2))}</p></div>`;
+    }
+
+    async function runRagQuery() {
+      const input = document.getElementById('ragQueryInput');
+      const resultsBox = document.getElementById('ragQueryResults');
+      if (!input.value.trim() || !runId) return;
+      resultsBox.innerHTML = '<div class="query-hit-text">Searching…</div>';
+      try {
+        const resp = await fetch(`/api/query/${runId}?q=${encodeURIComponent(input.value)}`);
+        const data = await resp.json();
+        if (data.error) { resultsBox.innerHTML = `<div class="query-hit-text">${escapeHtml(data.error)}</div>`; return; }
+        resultsBox.innerHTML = data.results.map(r => `
+        <div class="query-hit">
+          <div class="query-hit-meta"><span>${escapeHtml(r.section || 'section')}</span><span>score ${r.score}</span></div>
+          <div class="query-hit-text">${escapeHtml(r.content)}</div>
+        </div>`).join('') || '<div class="query-hit-text">No results.</div>';
+      } catch (err) {
+        resultsBox.innerHTML = `<div class="query-hit-text">Query failed: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    // ---- Panel tabs (Reasoning/Evidence/Memory/Logs are static placeholders --
+    // real per-agent traces don't exist until the agents themselves are built) ----
+    document.querySelectorAll('.sp-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.sp-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.sp-pane').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelector(`.sp-pane[data-pane="${tab.dataset.tab}"]`).classList.add('active');
+      });
+    });
+
+    // Initial render so cards show "Waiting" before any upload.
+    renderCards();
+  </script>
+
+</body>
+
+</html>

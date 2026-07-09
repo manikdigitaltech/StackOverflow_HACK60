@@ -1,0 +1,56 @@
+# --- Config ---
+pydantic>=2.6
+pydantic-settings>=2.2
+
+# --- LangGraph / LangChain (agent orchestration + Ollama client) ---
+langgraph>=0.2
+langgraph-checkpoint-sqlite
+langchain>=0.2
+langchain-community
+langchain-ollama
+pyyaml
+
+# --- Parsing ---
+docling
+pymupdf
+pandas
+tabulate   # needed for DataFrame.to_markdown() used in table export
+
+# --- Vector search + embeddings ---
+faiss-cpu
+numpy
+sentence-transformers   # serves bge-small-en-v1.5 (Index A) / specter2_base (Index B) locally
+rank-bm25                # sparse half of Index A's hybrid dense+BM25 retrieval (kanishka RAG merge)
+
+# --- SPECTER2 (Index B literature-corpus embeddings; kanishka RAG merge) ---
+transformers
+adapters
+torch
+huggingface_hub
+
+# --- Live literature sources (optional, retrieval-only; kanishka RAG merge) ---
+requests
+arxiv
+
+# --- Novelty Agent (all-MiniLM-L6-v2 embeddings + offline fallback; arko_novelty_agent merge) ---
+scikit-learn
+
+# --- MySQL ---
+sqlalchemy>=2.0
+alembic
+pymysql
+cryptography            # required by pymysql for auth on MySQL 8
+
+# --- UI ---
+streamlit
+
+# --- Live pipeline demo server (server/) ---
+fastapi
+uvicorn
+python-multipart
+
+# --- Utilities ---
+python-dotenv
+
+# --- Testing (kanishka RAG merge) ---
+pytest

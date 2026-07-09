@@ -1,0 +1,1 @@
+{"title": "A Survey of Graph Neural Networks", "abstract": "This survey reviews GNN architectures for molecular property prediction.", "sections": [{"heading": "Background", "text": "GNNs operate on molecular graphs."}], "references": ["Kipf and Welling GCN"], "year": 2022}
