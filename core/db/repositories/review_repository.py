@@ -1,5 +1,5 @@
 """
-Repository for `reviewed_papers` and `review_assessments` — the core audit
+Repository for `reviewed_papers` and `review_assessments` - the core audit
 trail that every LangGraph node writes to as it completes.
 """
 

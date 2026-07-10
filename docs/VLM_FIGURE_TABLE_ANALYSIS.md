@@ -4,7 +4,7 @@
 this relates to `FigureTableAgent`'s caption-only analysis (see
 `AGENTS_ARCHITECTURE.md`).*
 
-## Two figure/table analysis paths exist — deliberately, not by accident
+## Two figure/table analysis paths exist - deliberately, not by accident
 
 | | `FigureTableAgent` (text agent) | `figure_analyzer.py` (this doc) |
 |---|---|---|
@@ -14,9 +14,9 @@ this relates to `FigureTableAgent`'s caption-only analysis (see
 | What it sees | What the caption *says* the figure shows | What the figure *actually* shows |
 
 `FigureTableAgent`'s own docstring is explicit that it runs "caption-mode
-only... NOT actual visual interpretation — that's the Vision-Optional
+only... NOT actual visual interpretation - that's the Vision-Optional
 extension... which is unbuilt." This document covers the piece that closes
-that exact gap — real image understanding, not just reading captions.
+that exact gap - real image understanding, not just reading captions.
 
 ## Why a separate vision LLM factory (`get_vision_llm()`)
 
@@ -28,7 +28,7 @@ factories so:
 - `settings.vision.enabled` can toggle the whole capability off without
   touching the text pipeline at all (default: **off**).
 - Ollama's library renamed the Qwen vision family since the original
-  settings were written (Qwen2-VL → Qwen2.5-VL) — a small model-tag
+  settings were written (Qwen2-VL → Qwen2.5-VL) - a small model-tag
   translation map (`_OLLAMA_VISION_MODEL_MAP`) bridges the config's
   human-friendly names (`qwen2-vl-7b`) to the actual pullable Ollama tags
   (`qwen2.5vl:7b`), the same pattern already used for text models.
@@ -56,10 +56,10 @@ Figure.image_path + Figure.ocr_text populated
 
 - **No-op by default.** If `settings.vision.enabled` is `False` (the
   default), `analyze_figures()` returns the `ParsedPaper` completely
-  unchanged — the rest of the pipeline behaves identically whether or not a
+  unchanged - the rest of the pipeline behaves identically whether or not a
   vision model is available.
 - **Fails soft, per figure.** A crop failure or a single bad VLM call is
-  logged and that one figure is left as-is — one bad crop never blocks the
+  logged and that one figure is left as-is - one bad crop never blocks the
   rest of the paper's review.
 - **The prompt is deliberately factual, not speculative**: "describe
   factually what it shows... do not speculate about anything not visible in
@@ -86,13 +86,13 @@ uses the simpler bare-string form:
   flag**: pointed the vision client at the already-pulled text-only
   `qwen2.5:7b` model and got a hard `400` directly from Ollama —
   `"Multimodal data provided, but model does not support multimodal
-  requests"` — proving there's no silent degraded-quality fallback; a real
+  requests"` - proving there's no silent degraded-quality fallback; a real
   vision-tagged model is required.
 
 ## Known gap
 
 **No vision model is currently pulled** (`ollama pull qwen2.5vl:7b` or the
-smaller `:3b` variant) — this was an explicit, deliberate choice made this
+smaller `:3b` variant) - this was an explicit, deliberate choice made this
 session, not an oversight. The live pipeline dashboard correctly reports this
 stage as "skipped" rather than faking a result. Pulling a model and setting
 `VISION__ENABLED=true` is all that's needed to light this stage up for real.

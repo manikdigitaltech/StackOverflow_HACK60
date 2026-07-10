@@ -67,7 +67,7 @@ class Paper(Base):
 
 
 class Chunk(Base):
-    """One embedded passage of a Paper — the bridge row between MySQL and FAISS."""
+    """One embedded passage of a Paper - the bridge row between MySQL and FAISS."""
     __tablename__ = "chunks"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -88,7 +88,7 @@ class Chunk(Base):
 
 
 class ReviewedPaper(Base):
-    """One paper submitted by a user to be reviewed (KB2 — never added to FAISS)."""
+    """One paper submitted by a user to be reviewed (KB2 - never added to FAISS)."""
     __tablename__ = "reviewed_papers"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -150,3 +150,79 @@ class ReflectionFlag(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, server_default=func.now())
 
     reviewed_paper: Mapped["ReviewedPaper"] = relationship(back_populates="reflection_flags")
+
+
+# --- Human reviewer submission (independent of the AI's own FinalReview /
+# HumanApproval flow -- see core/schemas/agent_output_schemas.py::FinalReview
+# for the AI's own 5-point Recommendation enum, which this deliberately does
+# NOT reuse, so this feature can never affect the graph or the eval harness) ---
+
+class Venue(str, enum.Enum):
+    miccai = "MICCAI"
+    bmvc = "BMVC"
+    neurips = "NeurIPS"
+    ijcb = "IJCB"
+    cvpr = "CVPR"
+    other = "Other"
+
+
+class ConflictOfInterest(str, enum.Enum):
+    none = "none"
+    declared = "declared"
+
+
+class ReviewerExpertise(str, enum.Enum):
+    expert = "expert"
+    knowledgeable = "knowledgeable"
+    passing_familiarity = "passing_familiarity"
+
+
+class HumanReviewRating(str, enum.Enum):
+    """The template's 6-point scale -- distinct from Recommendation (the
+    AI's own 5-point enum used throughout core/graph and the eval harness)."""
+    reject = "R"
+    weak_reject = "WR"
+    borderline_reject = "BR"
+    borderline_accept = "BA"
+    weak_accept = "WA"
+    accept = "A"
+
+
+class HumanReview(Base):
+    """One human reviewer's independent, structured review of a reviewed
+    paper, following Generic_Review_Template_Agentic_AI.docx's fields.
+    One row per reviewed_paper_id -- see HumanReviewRepository.upsert,
+    resubmission updates this same row rather than inserting a duplicate."""
+    __tablename__ = "human_reviews"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    reviewed_paper_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("reviewed_papers.id"), nullable=False, unique=True
+    )
+
+    # --- Metadata ---
+    paper_id_display: Mapped[Optional[str]] = mapped_column(String(128))
+    paper_title: Mapped[Optional[str]] = mapped_column(Text)
+    venue: Mapped[Optional[Venue]] = mapped_column(Enum(Venue))
+    venue_other: Mapped[Optional[str]] = mapped_column(String(128))
+    reviewer_name: Mapped[Optional[str]] = mapped_column(String(128))
+    conflict_of_interest: Mapped[Optional[ConflictOfInterest]] = mapped_column(Enum(ConflictOfInterest))
+    reviewer_expertise: Mapped[Optional[ReviewerExpertise]] = mapped_column(Enum(ReviewerExpertise))
+
+    # --- Template sections A-G ---
+    summary: Mapped[Optional[str]] = mapped_column(Text)                    # A) Summary of the Paper
+    strengths: Mapped[Optional[list]] = mapped_column(JSON)                 # B) Strengths
+    weaknesses_major: Mapped[Optional[list]] = mapped_column(JSON)          # C) Weaknesses -- Major/Technical
+    weaknesses_minor: Mapped[Optional[list]] = mapped_column(JSON)          # C) Weaknesses -- Minor/Presentation
+    questions_for_rebuttal: Mapped[Optional[list]] = mapped_column(JSON)    # D) Questions for Rebuttal
+    final_conclusion: Mapped[Optional[str]] = mapped_column(Text)           # E) Final Review Conclusion
+    rating: Mapped[Optional[HumanReviewRating]] = mapped_column(Enum(HumanReviewRating))  # F) Review Rating
+    confidence: Mapped[Optional[int]] = mapped_column(Integer)              # F) Reviewer Confidence, 1-5
+    rating_justification: Mapped[Optional[str]] = mapped_column(Text)       # G) Justify the Review Rating
+
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    reviewed_paper: Mapped["ReviewedPaper"] = relationship()

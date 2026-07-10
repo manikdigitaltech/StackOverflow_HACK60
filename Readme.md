@@ -1,7 +1,7 @@
 # Autonomous AI Paper Reviewer & Scientific Evaluation Agent
 
 A multi-agent system that ingests a research paper PDF and produces a
-structured, evidence-backed peer review — parsing, RAG-grounded literature
+structured, evidence-backed peer review - parsing, RAG-grounded literature
 comparison, novelty/methodology/citation/evidence assessment, self-reflection,
 and a final structured recommendation. Fully local: Ollama for LLM inference,
 FAISS for retrieval, no cloud API calls in the core pipeline.
@@ -25,14 +25,14 @@ Please create new branches with your name
 - **GPU strongly recommended, not required.** If a CUDA GPU is available,
   make sure `torch` is installed with a build matching your driver's CUDA
   version (`torch.cuda.is_available()` should return `True`) and set
-  `EMBEDDINGS__DEVICE=cuda` in `.env` — otherwise every embedding call
+  `EMBEDDINGS__DEVICE=cuda` in `.env` - otherwise every embedding call
   (RAG indexing, the novelty scorer) silently runs on CPU even with a GPU
   present, since nothing auto-detects this.
 - **MySQL**, for the human-in-the-loop / review-persistence layer. Real and
-  running matters here — reviews are actually written to it now, not just
+  running matters here - reviews are actually written to it now, not just
   schema-ready. No `docker-compose.yml` is checked in; the settings default
   to `localhost:3307` / db `paper_reviewer` / user `reviewer_app` (see
-  `env.example`) — point those at a real instance, or stand one up yourself
+  `env.example`) - point those at a real instance, or stand one up yourself
   (`mysqld --datadir=... --port=3307 ...`, then run the Alembic migration in
   `core/db/migrations/`). The live dashboard's System Health panel
   (`GET /api/health`) tells you honestly whether it's reachable.
@@ -59,7 +59,7 @@ python -m uvicorn server.main:app --reload --port 8000
 Open `http://localhost:8000/`, upload a PDF, and watch it run. The review
 run genuinely pauses mid-graph at the human-approval gate (a real LangGraph
 `interrupt()`, not a post-hoc "review the finished result" step) until you
-approve, reject, or revise it from the dashboard — see `docs/CONTEXT.md` §7
+approve, reject, or revise it from the dashboard - see `docs/CONTEXT.md` §7
 item 2. Past runs are browsable in the dashboard's History tab; system
 dependency health (Ollama, MySQL, Docling, literature index, checkpoint DB)
 is a live panel, not a hardcoded "Healthy."
@@ -99,7 +99,7 @@ pytest tests/unit -v
 ```
 
 Individual manual verification scripts for specific pieces (parsing, RAG,
-each agent, the novelty pipeline, etc.) live under `scripts/test_*.py` — run
+each agent, the novelty pipeline, etc.) live under `scripts/test_*.py` - run
 any of them directly, e.g.:
 
 ```bash
@@ -111,7 +111,7 @@ python -m scripts.test_novelty_agent
 
 The problem statement's graded core: runs the full graph against every
 paper in PeerRead ICLR-2017's held-out `test` split (never touched by any
-corpus/index — see `docs/PEERREAD_CORPUS_MODULE.md`), maps the recommendation
+corpus/index - see `docs/PEERREAD_CORPUS_MODULE.md`), maps the recommendation
 to accept/reject, and scores against real ground truth.
 
 ```bash
@@ -120,7 +120,7 @@ python -m scripts.run_peerread_evaluation --output output_results/peerread_eval.
 
 Real PeerRead data needs to be present first (`data/peerread_raw/iclr_2017/`
 — see `docs/PEERREAD_CORPUS_MODULE.md` for how it was fetched). Current
-numbers are in `docs/CONTEXT.md` §7 item 3 — re-run and don't trust numbers
+numbers are in `docs/CONTEXT.md` §7 item 3 - re-run and don't trust numbers
 in docs as permanently current. Optional, slower, complementary quality
 signals (does an agent's *reasoning* hold up, not just its final call) are
 in `docs/QUALITY_GATES.md`.
@@ -139,7 +139,7 @@ core/
                  + a separate embedding-only novelty scorer (core/agents/novelty/)
   graph/         LangGraph orchestration wiring the agents into one review run
   llm/           Ollama client factory, prompt manager, structured-output helper
-  db/            SQLAlchemy models + repositories + Alembic migration — real,
+  db/            SQLAlchemy models + repositories + Alembic migration - real,
                  live MySQL persistence, not just schema
   eval/          PeerRead accuracy/F1/κ harness + optional DeepEval/RAGAS quality gates
   utils/         Prompt-injection guardrails, grounding checks, token budgeting
@@ -155,8 +155,8 @@ data/            Sample PDFs + real ICLR-2017 PeerRead data (gitignored, see
 ## Current status
 
 See `docs/CONTEXT.md` for the full, actively-maintained picture (it
-explicitly warns not to trust any snapshot as permanently current — check
-git state yourself) — condensed here:
+explicitly warns not to trust any snapshot as permanently current - check
+git state yourself) - condensed here:
 
 - **Working, verified, real data**: PDF parsing (with guardrails), both RAG
   indexes (the literature index holds real ICLR-2017 papers, not seed data,
@@ -168,7 +168,7 @@ git state yourself) — condensed here:
   record), and the graded PeerRead evaluation harness (real accuracy/F1/κ
   numbers, not just built-but-unrun).
 - **Known open problem, being actively worked**: the eval harness's Cohen's
-  κ is currently low (~0.10, "slight" agreement) — see `docs/CONTEXT.md` §7
+  κ is currently low (~0.10, "slight" agreement) - see `docs/CONTEXT.md` §7
   item 3 for the honest read and what's already been tried. The Adversarial
   Critic agent was added directly in response to this; re-running the
   harness to see whether it moved is still open.

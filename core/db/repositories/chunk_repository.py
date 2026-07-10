@@ -1,5 +1,5 @@
 """
-Repository for the `chunks` table — the bridge between FAISS vector IDs
+Repository for the `chunks` table - the bridge between FAISS vector IDs
 and the actual paper text/metadata in MySQL.
 """
 

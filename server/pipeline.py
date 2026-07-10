@@ -689,3 +689,34 @@ def check_system_health() -> Dict[str, Any]:
     }
 
     return checks
+
+
+def load_eval_metrics() -> list[Dict[str, Any]]:
+    """Real numbers from scripts/run_peerread_evaluation.py's own
+    output -- reads whatever output_results/*.metrics.json files exist on
+    disk rather than hardcoding/estimating a score. This is a snapshot from
+    whenever that harness was last run (it takes ~35-40 minutes over the
+    38-paper PeerRead test split), not a live per-request statistic -- there
+    simply isn't a cheaper way to get real accuracy-against-ground-truth
+    without re-running the full graph on held-out papers."""
+    import json as _json
+
+    repo_root = Path(__file__).resolve().parent.parent
+    output_dir = repo_root / "output_results"
+    if not output_dir.exists():
+        return []
+
+    runs = []
+    for path in output_dir.glob("*.metrics.json"):
+        try:
+            metrics = _json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        runs.append({
+            "label": path.stem.replace(".metrics", "").replace("_", " ").title(),
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(path.stat().st_mtime)),
+            **metrics,
+        })
+
+    runs.sort(key=lambda r: r["generated_at"], reverse=True)
+    return runs

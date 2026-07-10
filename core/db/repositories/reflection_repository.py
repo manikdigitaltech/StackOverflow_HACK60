@@ -1,4 +1,4 @@
-"""Repository for `reflection_flags` — issues the Reflection Agent raised."""
+"""Repository for `reflection_flags` - issues the Reflection Agent raised."""
 
 from typing import List
 from sqlalchemy.orm import Session

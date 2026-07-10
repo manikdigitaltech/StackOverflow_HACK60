@@ -1,4 +1,4 @@
-# LangGraph Orchestration — Wiring the Agents Into One Review Run
+# LangGraph Orchestration - Wiring the Agents Into One Review Run
 
 *Covers `core/graph/`. Turns 10 independently-callable agent classes into
 an actual reviewer, gated behind a mandatory human-approval interrupt.
@@ -43,31 +43,31 @@ through the dashboard.*
 
 ## State (`state.py`)
 
-`ReviewGraphState` — a `TypedDict` with one key per agent's output
+`ReviewGraphState` - a `TypedDict` with one key per agent's output
 (`paper_understanding`, `literature_context`, `novelty_assessment`, etc.),
 plus `revision_count` and `revision_feedback`. Parallel branches never write
-the same key — that's what lets them run concurrently without a custom
+the same key - that's what lets them run concurrently without a custom
 reducer function.
 
 ## Nodes (`nodes.py`)
 
 `ReviewGraphNodes` constructs all 10 agents **once** (not per node-call,
-including the Adversarial Critic — see `AGENTS_ARCHITECTURE.md`), and each
+including the Adversarial Critic - see `AGENTS_ARCHITECTURE.md`), and each
 method is a thin wrapper: read the relevant keys out of state, call the
 agent's `.run()`, return a partial state update.
 
 Two nodes exist purely for orchestration, not review logic:
 
-- **`route_after_reflection`** — the conditional-edge router: revise (once,
+- **`route_after_reflection`** - the conditional-edge router: revise (once,
   bounded by `settings.reflection.max_revision_passes`, default 1) if
   `ReflectionNotes.needs_revision` is true, else proceed straight to synthesis.
-- **`prepare_revision`** — builds the actual feedback text fed back into the
+- **`prepare_revision`** - builds the actual feedback text fed back into the
   4 assessment agents (from `ReflectionNotes.flags`, capped at 8) and
   increments the bounded counter. **Without this node, "revision" would just
-  be an identical re-run of the same agents on the same inputs** — this is
+  be an identical re-run of the same agents on the same inputs** - this is
   what makes the second pass a genuine revision (see `NOVELTY_AGENT.md` for
   a concrete example of this changing a real verdict).
-- **`ready_for_synthesis`** — a pure pass-through sync node (see the fan-in
+- **`ready_for_synthesis`** - a pure pass-through sync node (see the fan-in
   gotcha below for why it exists).
 
 ## The revision loop is real, not cosmetic
@@ -78,14 +78,14 @@ threaded through `novelty_agent`, `methodology_agent`, `citation_agent`, and
 `prompts.yaml` templates (each gained a `{revision_feedback}` placeholder,
 empty on a first pass). Confirmed working in the real Ollama run this
 session: after the first reflection pass flagged 2 issues, all four
-assessment agents genuinely re-ran with that specific feedback — Novelty's
+assessment agents genuinely re-ran with that specific feedback - Novelty's
 rating changed between passes as a direct result.
 
 ## Two real LangGraph fan-in bugs, found and fixed
 
 Both were caught by a dedicated, fast, fully-mocked topology test
 (`scripts/test_graph_topology.py`, runs in milliseconds) written specifically
-to stress this — worth understanding since they're non-obvious and will
+to stress this - worth understanding since they're non-obvious and will
 recur if the graph is extended without knowing this rule:
 
 > **`add_edge(a, "x")` and `add_edge(b, "x")` called separately are
@@ -93,7 +93,7 @@ recur if the graph is extended without knowing this rule:
 > join in LangGraph requires listing every source together in **one**
 > `add_edge([a, b], "x")` call.
 
-**Bug 1** — `reflection` has 4 real prerequisites (novelty, methodology,
+**Bug 1** - `reflection` has 4 real prerequisites (novelty, methodology,
 citation, evidence_reproducibility). Wired as 4 separate `add_edge(...)`
 calls, `reflection` fired the instant `methodology`/`evidence_reproducibility`
 completed (they only need `START`, finishing one superstep before
@@ -102,10 +102,10 @@ completed (they only need `START`, finishing one superstep before
 `add_edge(["novelty", "methodology", "citation", "evidence_reproducibility"],
 "reflection")`.
 
-**Bug 2** — `figure_table` (feeds `final_review`) and `reflection`'s
+**Bug 2** - `figure_table` (feeds `final_review`) and `reflection`'s
 "proceed" branch (also targets `final_review`) are two *independent*
 triggers from two different mechanisms (`add_edge` vs.
-`add_conditional_edges`) — mixing them doesn't create a join either.
+`add_conditional_edges`) - mixing them doesn't create a join either.
 `final_review` fired the instant `figure_table` completed, before reflection
 had even run once. **Fix:** a conditional edge's dynamically-chosen target
 can't itself be one entry in a list-join, so route "proceed" to a trivial
@@ -119,7 +119,7 @@ about needing a "fresh" `figure_table` signal on a later revision pass.
 `final_review --> human_approval --> END` (see `build_graph.py`). The
 `human_approval` node (`nodes.py`) calls `langgraph.types.interrupt()` with
 the drafted review (recommendation, confidence, summary, strengths,
-weaknesses, questions for authors) as the interrupt payload — this genuinely
+weaknesses, questions for authors) as the interrupt payload - this genuinely
 pauses graph execution; `graph.stream()` yields `{"__interrupt__": (...)}`
 and returns control to the caller. `server/pipeline.py` surfaces this as a
 `human_approval`/`awaiting_approval` SSE event. Resuming requires
@@ -132,7 +132,7 @@ A decision of `"revised"` with `override_recommendation` set rewrites
 
 ## Checkpointing
 
-Compiled with `InMemorySaver` — a parked run (waiting at `human_approval`)
+Compiled with `InMemorySaver` - a parked run (waiting at `human_approval`)
 only survives within the same server process. A real `SqliteSaver` swap
 would be needed for a parked run to survive a server restart; not yet a
 real requirement since MySQL (not the graph checkpointer) is the durable
@@ -148,9 +148,9 @@ copy of record for a decided approval.
   `revision_count` bounds correctly, `final_review` receives
   `figure_table_summary`. All assertions pass.
 - **Human-approval interrupt/resume test** (`scripts/test_human_approval.py`,
-  all agents mocked): 4 scenarios — approve as-drafted, reject outright,
+  all agents mocked): 4 scenarios - approve as-drafted, reject outright,
   human overrides the recommendation, terse bare-string resume (`"approve"`)
-  — confirming the graph genuinely parks at `__interrupt__` with the drafted
+  - confirming the graph genuinely parks at `__interrupt__` with the drafted
   recommendation, and each resume path produces the correct final state.
 - **Real end-to-end run against local Ollama** (no mocks, ~20.6 minutes,
   synthetic short paper): parallel fan-out ran correctly; first reflection
@@ -160,7 +160,7 @@ copy of record for a decided approval.
   proceeded; `revision_count: 1` in the final state; final review synthesized
   a coherent, accurately-grounded recommendation
   (`borderline`/`medium confidence`, correctly citing the test paper's actual
-  gaps — no ablations, no compute details).
+  gaps - no ablations, no compute details).
 - **Live, through the dashboard**: uploaded real PDFs and watched the graph
   stream via `server/pipeline.py`, including a genuine revision pass, park at
   `human_approval`/`awaiting_approval` with the real interrupt payload, and
@@ -170,4 +170,4 @@ copy of record for a decided approval.
 ## Not yet done
 
 A parked run only survives within the same server process (in-memory
-checkpointer) — see Checkpointing above.
+checkpointer) - see Checkpointing above.

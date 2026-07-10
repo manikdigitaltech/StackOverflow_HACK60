@@ -356,6 +356,67 @@
       margin: 0 auto;
     }
 
+    .eval-metrics-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+      backdrop-filter: blur(16px);
+    }
+
+    .eval-metrics-run {
+      padding: 14px 0 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      margin-top: 14px;
+    }
+
+    .eval-metrics-run:first-child {
+      border-top: none;
+      margin-top: 0;
+      padding-top: 0;
+    }
+
+    .eval-metrics-run-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-1);
+      margin-bottom: 2px;
+    }
+
+    .eval-metrics-run-time {
+      font-size: 11px;
+      color: var(--text-3);
+      margin-bottom: 12px;
+    }
+
+    .eval-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 10px;
+    }
+
+    .eval-metrics-tile {
+      background: #050609;
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    .eval-metrics-tile-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-3);
+      margin-bottom: 4px;
+    }
+
+    .eval-metrics-tile-val {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-1);
+    }
+
     .history-row {
       background: var(--glass);
       border: 1px solid var(--glass-border);
@@ -498,7 +559,7 @@
 
     .workspace-grid {
       display: grid;
-      grid-template-columns: 260px 1fr 400px;
+      grid-template-columns: 2fr 7fr 3fr;   /* left-pane : activity-feed : detail-panel = 2:7:3 of a 12-col row */
       gap: 20px;
       align-items: start;
     }
@@ -537,7 +598,7 @@
       background: var(--glass);
       border: 1px solid var(--glass-border);
       border-radius: var(--radius);
-      padding: 20px;
+      padding: 14px;
       backdrop-filter: blur(16px);
       position: sticky;
       top: 28px;
@@ -545,9 +606,9 @@
 
     .pdf-thumb {
       width: 100%;
-      height: 150px;
+      height: 90px;
       border-radius: 12px;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
       background: linear-gradient(160deg, rgba(139, 92, 246, 0.25), rgba(76, 130, 251, 0.18));
       display: flex;
       align-items: center;
@@ -556,23 +617,23 @@
     }
 
     .pdf-thumb svg {
-      width: 38px;
-      height: 38px;
+      width: 26px;
+      height: 26px;
       opacity: 0.85;
     }
 
     .pdf-title {
-      font-size: 14.5px;
+      font-size: 13px;
       font-weight: 600;
-      line-height: 1.4;
-      margin-bottom: 14px;
+      line-height: 1.35;
+      margin-bottom: 10px;
     }
 
     .pdf-meta-row {
       display: flex;
       justify-content: space-between;
-      font-size: 12px;
-      padding: 8px 0;
+      font-size: 11px;
+      padding: 6px 0;
       border-top: 1px solid rgba(255, 255, 255, 0.06);
     }
 
@@ -592,10 +653,10 @@
 
     .domain-pill {
       display: inline-block;
-      margin-top: 14px;
-      font-size: 11px;
+      margin-top: 10px;
+      font-size: 10.5px;
       font-weight: 600;
-      padding: 5px 11px;
+      padding: 4px 10px;
       border-radius: 20px;
       background: var(--grad-soft);
       color: var(--purple-soft);
@@ -780,6 +841,49 @@
       color: var(--purple-soft);
       font-weight: 600;
       flex-shrink: 0;
+    }
+
+    /* Only stages with a matching pipeline card (i.e. almost every real
+       stage -- see CARDS) get a working expand toggle; the two synthetic
+       events with no card ('pipeline' close-out, 'connection' error) keep
+       the plain, non-interactive prompt glyph. */
+    .tl-prompt.expandable {
+      cursor: pointer;
+      display: inline-block;
+      transition: transform .15s ease;
+      user-select: none;
+    }
+
+    .tl-node.tl-expanded .tl-prompt.expandable {
+      transform: rotate(90deg);
+    }
+
+    .tl-detail {
+      margin: 8px 0 2px;
+      padding: 10px 12px;
+      border-left: 2px solid var(--tl-border);
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+    }
+
+    .tl-detail[hidden] {
+      display: none;
+    }
+
+    /* renderPanelBody() (shared with the docked right-hand panel's Overview
+       tab) emits .sp-block markup styled with the page's global --text-1/-3
+       tokens, tuned for the always-dark detail panel. .activity-feed can
+       flip to a light palette (see its own prefers-color-scheme override
+       above), so re-point just the injected copy at this feed's own themed
+       tokens to keep it readable in both modes without touching .sp-block
+       itself (still used, unchanged, by the docked panel). */
+    .tl-detail .sp-block h5 {
+      color: var(--tl-text-3);
+    }
+
+    .tl-detail .sp-block p,
+    .tl-detail .sp-block li {
+      color: var(--tl-text-2);
     }
 
     .tl-label {
@@ -1693,6 +1797,95 @@
       color: var(--text-3);
     }
 
+    /* ---------------- HUMAN REVIEW SUBMISSION FORM ---------------- */
+    .notice-banner {
+      background: rgba(251, 191, 63, 0.08);
+      border: 1px solid rgba(251, 191, 63, 0.3);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: var(--text-2);
+      margin-bottom: 22px;
+    }
+
+    .hr-field {
+      margin-bottom: 14px;
+    }
+
+    .hr-field label {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-2);
+      margin-bottom: 6px;
+    }
+
+    .hr-field input[type="text"],
+    .hr-field select {
+      width: 100%;
+      background: #050609;
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 9px 12px;
+      color: var(--text-1);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+    }
+
+    .hr-field input[type="text"]::placeholder {
+      color: var(--text-3);
+    }
+
+    .word-hint {
+      font-weight: 400;
+      font-size: 11.5px;
+      color: var(--text-3);
+    }
+
+    .rating-scale {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .rating-btn {
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--glass-border);
+      background: var(--glass);
+      color: var(--text-2);
+    }
+
+    .rating-btn.selected {
+      background: var(--grad-soft);
+      border-color: var(--purple);
+      color: var(--text-1);
+    }
+
+    /* Section headings (A-G) had no spacing rule at all -- every textarea
+       sat flush against the next heading below it. One consistent rhythm
+       for all of them, same convention as .final-panel h3 elsewhere: the
+       heading's own margin-top creates the gap above it (collapses with
+       whatever came before, so no double-margin stacking), not a
+       margin-bottom on the preceding field. */
+    #view-human-review h3 {
+      font-size: 14.5px;
+      font-weight: 600;
+      color: var(--text-1);
+      margin: 22px 0 8px;
+    }
+
+    #hrStatusMsg {
+      font-size: 12.5px;
+      color: var(--text-2);
+      margin-top: 10px;
+    }
+
     /* ---------------- FINAL REVIEW VIEW ---------------- */
     .final-grid {
       display: grid;
@@ -1886,6 +2079,7 @@
         <div class="topbar-tab active" data-view="workspace">Live Run</div>
         <div class="topbar-tab" data-view="approval">Human Approval</div>
         <div class="topbar-tab" data-view="final">Final Review</div>
+        <div class="topbar-tab" data-view="human-review">Submit Review</div>
         <div class="topbar-tab" data-view="history">History</div>
       </nav>
 
@@ -1900,8 +2094,8 @@
         <div class="hero">
           <div class="hero-eyebrow">Multi-agent scientific review</div>
           <h1>Autonomous Scientific<br />Review Agent</h1>
-          <p>Upload a research paper and watch the real pipeline run live — Docling parsing, figure/table vision
-            analysis, and RAG indexing, streamed stage by stage as each one actually completes.</p>
+          <p>Upload a research paper and watch it get reviewed in real time - its text is read, figures and
+            tables are analyzed, and related work is checked for context, with live progress at every step.</p>
           <input type="file" id="pdfFileInput" accept="application/pdf" style="display:none;"
             onchange="handleFileSelected(event)">
           <button class="btn-primary" onclick="document.getElementById('pdfFileInput').click()">
@@ -1910,11 +2104,11 @@
             </svg>
             Upload Research Paper
           </button>
-          <div class="upload-hint">PDF · parsed for real by the pipeline running on this machine</div>
+          <div class="upload-hint">PDF only</div>
           <div class="upload-error" id="uploadError" style="display:none;"></div>
         </div>
 
-        <div class="health-strip">
+        <div class="health-strip" style="display:none;">
           <div class="health-strip-title">System Health (live probe via /api/health)</div>
           <div class="health-grid" id="healthGrid">
             <div class="health-item"><span class="health-dot"></span><div class="health-item-body"><div class="health-label">Loading...</div></div></div>
@@ -2034,19 +2228,33 @@
               `final_report` completes.</p>
           </div>
 
-          <div class="approval-actions">
-            <button class="btn-approve" onclick="handleApprovalAction('approve')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 6 9 17l-5-5" />
-              </svg>Approve</button>
-            <button class="btn-changes" onclick="handleApprovalAction('changes')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
-              </svg>Request Changes</button>
-            <button class="btn-reject" onclick="handleApprovalAction('reject')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>Reject</button>
-          </div>
+          <div id="approvalControls" style="display:none;">
+            <div class="approval-actions">
+              <button class="btn-approve" onclick="handleApprovalAction('approve')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>Approve</button>
+              <button class="btn-changes" onclick="handleApprovalAction('changes')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>Request Changes</button>
+              <button class="btn-reject" onclick="handleApprovalAction('reject')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>Reject</button>
+            </div>
 
-          <textarea class="comment-box" id="approvalComment" placeholder="Add reviewer comments (optional)…"></textarea>
+            <textarea class="comment-box" id="approvalComment" placeholder="Add reviewer comments (optional)…"></textarea>
+
+            <div class="hr-field" style="margin-top:14px;">
+              <label>Override Recommendation <span class="word-hint">(optional -- only applied with "Request Changes")</span></label>
+              <select id="approvalOverrideSelect">
+                <option value="">-- No override, keep the AI's recommendation --</option>
+                <option value="accept">Accept</option>
+                <option value="weak_accept">Weak Accept</option>
+                <option value="borderline">Borderline</option>
+                <option value="weak_reject">Weak Reject</option>
+                <option value="reject">Reject</option>
+              </select>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -2098,6 +2306,9 @@
             <h3>Literature Considered (top 5)</h3>
             <ul id="finalSupportingLit"><li>No literature retrieved.</li></ul>
 
+            <h3>Extracted Figures &amp; Tables <span class="word-hint">(preview, from parsing -- not part of the AI's own review text)</span></h3>
+            <div id="finalVisualsPreview"><p>—</p></div>
+
             <div class="export-row">
               <button class="btn-export primary" onclick="exportFinalReviewPdf()"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
                   <path d="M12 3v13M6 11l6 6 6-6M4 21h16" />
@@ -2113,6 +2324,19 @@
       <!-- ========== VIEW: HISTORY (real rows from MySQL via /api/history) ========== -->
       <section class="view" id="view-history">
         <div class="history-wrap">
+          <div class="eval-metrics-card">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
+              <div>
+                <div class="section-title" style="font-size:15px;">Model Evaluation (PeerRead Test Split)</div>
+                <div class="section-sub" style="margin-bottom:14px;">Real accuracy/F1/Cohen's κ against PeerRead ground truth, from the last time <code>scripts/run_peerread_evaluation.py</code> was run -- a snapshot, not a live per-request statistic.</div>
+              </div>
+              <button class="btn-export" onclick="loadEvalMetrics()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>Refresh</button>
+            </div>
+            <div id="evalMetricsList"><div class="sp-block"><p>Loading...</p></div></div>
+          </div>
+
           <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
             <div>
               <div class="section-title">Review History</div>
@@ -2123,6 +2347,74 @@
               </svg>Refresh</button>
           </div>
           <div id="historyList"><div class="sp-block"><p>Loading...</p></div></div>
+        </div>
+      </section>
+
+      <!-- ========== VIEW: SUBMIT HUMAN REVIEW (independent of the AI's own FinalReview/HumanApproval flow) ========== -->
+      <section class="view" id="view-human-review">
+        <div class="approval-wrap">
+          <div class="section-title">Submit Human Review</div>
+          <div class="section-sub">An independent, structured reviewer-style assessment of this paper, following the standard peer-review form -- separate from the AI's own generated review.</div>
+
+          <div class="notice-banner">
+            <strong>Confidentiality &amp; LLM-use notice</strong> (informational, matches the standard reviewer policy): treat this submission and the underlying paper as confidential. This form is for recording your own independent judgment.
+          </div>
+
+          <div class="hr-field"><label>Paper ID</label><input id="hrPaperId" type="text" placeholder="e.g. submission #1234"></div>
+          <div class="hr-field"><label>Paper Title</label><input id="hrPaperTitle" type="text"></div>
+          <div class="hr-field"><label>Venue / Track</label>
+            <select id="hrVenue">
+              <option value="">--</option>
+              <option>MICCAI</option><option>BMVC</option><option>NeurIPS</option>
+              <option>IJCB</option><option>CVPR</option><option>Other</option>
+            </select>
+            <input id="hrVenueOther" type="text" placeholder="If Other, specify" style="display:none; margin-top:8px;">
+          </div>
+          <div class="hr-field"><label>Reviewer ID / Name</label><input id="hrReviewerName" type="text"></div>
+          <div class="hr-field"><label>Conflict of Interest</label>
+            <select id="hrCOI"><option value="none">None</option><option value="declared">Declared</option></select>
+          </div>
+          <div class="hr-field"><label>Reviewer Expertise</label>
+            <select id="hrExpertise">
+              <option value="expert">Expert</option>
+              <option value="knowledgeable">Knowledgeable</option>
+              <option value="passing_familiarity">Passing familiarity</option>
+            </select>
+          </div>
+
+          <button class="btn-export" onclick="prefillHumanReviewFromAiDraft()">Prefill from AI Draft (optional)</button>
+
+          <h3>A) Summary of the Paper <span class="word-hint">(150-250 words)</span></h3>
+          <textarea class="comment-box" id="hrSummary" placeholder="Neutrally restate the problem, core idea, and main claimed contributions in your own words."></textarea>
+
+          <h3>B) Strengths <span class="word-hint">(150-300 words, 3-6 items, one per line)</span></h3>
+          <textarea class="comment-box" id="hrStrengths" placeholder="One strength per line."></textarea>
+
+          <h3>C) Weaknesses -- Major / Technical <span class="word-hint">(250-500 words combined across both boxes)</span></h3>
+          <textarea class="comment-box" id="hrWeaknessesMajor" placeholder="One fundamental/technical flaw per line."></textarea>
+
+          <h3>C) Weaknesses -- Minor / Presentation</h3>
+          <textarea class="comment-box" id="hrWeaknessesMinor" placeholder="One presentation/clarity issue per line."></textarea>
+
+          <h3>D) Questions for Rebuttal <span class="word-hint">(100-250 words, 2-4 items, one per line)</span></h3>
+          <textarea class="comment-box" id="hrQuestions" placeholder="One specific, answerable question per line."></textarea>
+
+          <h3>E) Final Review Conclusion <span class="word-hint">(100-200 words)</span></h3>
+          <textarea class="comment-box" id="hrConclusion" placeholder="Summarize your overall assessment and its single biggest driver."></textarea>
+
+          <h3>F) Review Rating</h3>
+          <div class="rating-scale" id="hrRatingButtons"></div>
+          <h3>Reviewer Confidence</h3>
+          <div class="rating-scale" id="hrConfidenceButtons"></div>
+
+          <h3>G) Justify the Review Rating <span class="word-hint">(150-300 words)</span></h3>
+          <textarea class="comment-box" id="hrJustification" placeholder="Connect your rating to the strengths/weaknesses above; state what would change the score."></textarea>
+
+          <div class="export-row">
+            <button class="btn-primary" onclick="submitHumanReview()">Save / Submit Review</button>
+            <button class="btn-export" onclick="exportHumanReviewJson()">Export JSON</button>
+          </div>
+          <div id="hrStatusMsg"></div>
         </div>
       </section>
 
@@ -2188,6 +2480,13 @@
     };
 
     let runId = null;
+    // Re-hydrate runId from the URL on a page refresh -- runId is otherwise
+    // pure in-memory JS state (see startStream/handleFileSelected), so
+    // without this a reload would lose the ability to reach a saved human
+    // review draft. Only affects the new Submit Review tab's GET below;
+    // does not attempt to reconnect the SSE stream itself.
+    const _urlRunId = new URLSearchParams(location.search).get('run_id');
+    if (_urlRunId) runId = _urlRunId;
     let currentEventSource = null;
     const liveEvents = {};        // stageKey -> latest event object
     let selectedCardKey = null;   // null = auto-follow mode; set = pinned to that card
@@ -2325,7 +2624,7 @@
       // the timeline -- disambiguate just here, where it actually matters.
       if (card) {
         return card.stageKeys.length > 1 && STAGE_SUBLABEL[event.stage]
-          ? `${card.label} — ${STAGE_SUBLABEL[event.stage]}`
+          ? `${card.label} - ${STAGE_SUBLABEL[event.stage]}`
           : card.label;
       }
       return event.label || event.stage;
@@ -2378,14 +2677,28 @@
           <span class="tl-time"></span>
         </div>
         <div class="tl-msg"></div>
+        <div class="tl-detail" hidden></div>
         <div class="tl-approval" hidden></div>`;
+        // Only stages with a matching pipeline card have any Overview content
+        // to show (see CARDS) -- the two synthetic no-card events ('pipeline'
+        // close-out, 'connection' error) keep a plain, non-clickable prompt.
+        if (card) {
+          const promptEl = el.querySelector('.tl-prompt');
+          promptEl.classList.add('expandable');
+          promptEl.addEventListener('click', () => toggleTimelineDetail(el, card));
+        }
         listEl.appendChild(el);
       } else {
         el = entry.el;
       }
       timelineNodes[event.stage] = { el, status: event.status };
 
-      el.className = 'tl-node tl-s-' + group + (isNew ? ' tl-enter' : '');
+      // Preserve a user's expand/collapse choice across an in-place update
+      // (e.g. human_approval's awaiting_approval -> done transition reuses
+      // this same element -- see the comment above this function) since the
+      // line below rebuilds the full className rather than toggling one class.
+      const wasExpanded = el.classList.contains('tl-expanded');
+      el.className = 'tl-node tl-s-' + group + (isNew ? ' tl-enter' : '') + (wasExpanded ? ' tl-expanded' : '');
       el.querySelector('.tl-label').textContent = label;
       el.querySelector('.tl-status-text').textContent = event.status.replace(/_/g, ' ');
 
@@ -2399,7 +2712,30 @@
       setTimelineMessage(event.stage, el.querySelector('.tl-msg'), activityDetailFor(event, card));
       renderApprovalControls(el.querySelector('.tl-approval'), event);
 
+      // Keep an already-expanded node's detail content live across an
+      // in-place update (e.g. a running stage the user expanded to watch,
+      // once it completes) rather than only rendering it at the moment of
+      // the click.
+      if (card && wasExpanded) {
+        el.querySelector('.tl-detail').innerHTML = renderPanelBody(card, statusOf(card), true);
+      }
+
       scrollActivityIfPinned();
+    }
+
+    // Expand/collapse a timeline node's detail -- the SAME read-only content
+    // renderPanelBody() already produces for the docked right-hand panel's
+    // Overview tab (see renderDockedPanel), so a step's content is available
+    // right where its log line is, not only by clicking its card on the left.
+    // Purely additive: doesn't touch selectCard/renderDockedPanel/auto-follow.
+    function toggleTimelineDetail(el, card) {
+      const detailEl = el.querySelector('.tl-detail');
+      const isExpanding = !el.classList.contains('tl-expanded');
+      el.classList.toggle('tl-expanded', isExpanding);
+      if (isExpanding) {
+        detailEl.innerHTML = renderPanelBody(card, statusOf(card), true);
+      }
+      detailEl.hidden = !isExpanding;
     }
 
     // Type the detail line out character-by-character with a blinking
@@ -2466,6 +2802,16 @@
       activityAutoScroll = true;
       approvalRecordedFor = null;
       document.getElementById('tlJumpBtn').classList.remove('visible');
+
+      // A fresh run hasn't reached the approval gate yet -- hide the
+      // Approve/Reject controls again (see renderApprovalView) and undo any
+      // disabled state / leftover comment text a previous run's decision
+      // left behind, so they don't linger visible for a run that hasn't
+      // gotten there yet.
+      document.getElementById('approvalControls').style.display = 'none';
+      document.querySelectorAll('.approval-actions button').forEach(b => b.disabled = false);
+      document.getElementById('approvalComment').value = '';
+      document.getElementById('approvalOverrideSelect').value = '';
     }
 
     // ---- Inline human-approval controls ----
@@ -2487,14 +2833,14 @@
       }
       container.hidden = false;
       if (approvalRecordedFor === runId) {
-        container.innerHTML = `<div class="tl-approval-note">Decision recorded — see the Human Approval tab.</div>`;
+        container.innerHTML = `<div class="tl-approval-note">Decision recorded - see the Human Approval tab.</div>`;
         return;
       }
       if (!container.innerHTML) {
         const req = event.request || {};
         const preview = req.paper_summary
           ? `<div class="tl-approval-request"><b>Draft: ${escapeHtml(titleCase(req.draft_recommendation || ''))}</b>
-              (confidence: ${escapeHtml(req.draft_confidence || 'n/a')}) — ${escapeHtml((req.paper_summary || '').slice(0, 160))}${(req.paper_summary || '').length > 160 ? '…' : ''}</div>`
+              (confidence: ${escapeHtml(req.draft_confidence || 'n/a')}) - ${escapeHtml((req.paper_summary || '').slice(0, 160))}${(req.paper_summary || '').length > 160 ? '…' : ''}</div>`
           : '';
         container.innerHTML = `${preview}
         <div class="tl-approval">
@@ -2557,6 +2903,8 @@
         if (!uploadResp.ok) throw new Error(`Upload failed: ${uploadResp.status}`);
         const { run_id, filename } = await uploadResp.json();
         runId = run_id;
+        history.replaceState(null, '', '?run_id=' + run_id);
+        clearHumanReviewForm();   // fresh run -- don't show a stale draft from a previous upload
 
         document.getElementById('pdfFilename').textContent = filename;
         document.getElementById('pdfRunId').textContent = 'run: ' + run_id;
@@ -2623,19 +2971,23 @@
 
     // ---- Nav + view switching ----
     const navItems = document.querySelectorAll('.topbar-tab[data-view]');
+
+    // Pulled out of the click listener below so code other than a literal
+    // tab click (e.g. handleApprovalAction's post-decision redirect) can
+    // switch views the same way, instead of duplicating this logic.
+    function switchTab(target) {
+      navItems.forEach(n => n.classList.toggle('active', n.dataset.view === target));
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      if (target === 'workspace') {
+        const runningVisible = document.getElementById('view-running').dataset.shown === '1';
+        document.getElementById(runningVisible ? 'view-running' : 'view-idle').classList.add('active');
+      } else {
+        document.getElementById('view-' + target).classList.add('active');
+      }
+    }
+
     navItems.forEach(item => {
-      item.addEventListener('click', () => {
-        navItems.forEach(n => n.classList.remove('active'));
-        item.classList.add('active');
-        const target = item.dataset.view;
-        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-        if (target === 'workspace') {
-          const runningVisible = document.getElementById('view-running').dataset.shown === '1';
-          document.getElementById(runningVisible ? 'view-running' : 'view-idle').classList.add('active');
-        } else {
-          document.getElementById('view-' + target).classList.add('active');
-        }
-      });
+      item.addEventListener('click', () => switchTab(item.dataset.view));
     });
 
     // ---- Docked detail panel: renders REAL event data for a card, in place ----
@@ -2671,34 +3023,44 @@
       document.querySelector('.sp-pane[data-pane="memory"]').innerHTML = renderMemoryPane(card);
     }
 
-    function renderPanelBody(card, status) {
+    // Shared with the Final Review report's own "Extracted Figures & Tables"
+    // preview section (renderFinalReviewView) -- one place building this
+    // markup so both spots always render identically from the same data.
+    function renderTablesPreview(tables) {
+      return (tables || []).map(t => `
+        <div class="sp-block"><h5>${escapeHtml(t.table_id)}${t.caption ? ' -- ' + escapeHtml(t.caption) : ''}</h5>
+          ${renderMarkdownTable(t.markdown)}
+        </div>`).join('');
+    }
+
+    function renderFiguresPreview(figures) {
+      return (figures || []).map(f => `
+        <div class="sp-block"><h5>${escapeHtml(f.figure_id)}</h5>
+          ${f.image_url ? `<img class="sp-figure-thumb" src="${escapeHtml(f.image_url)}" alt="${escapeHtml(f.figure_id)}" loading="lazy">` : ''}
+          <p><i>Caption: ${escapeHtml(f.caption || '(none detected)')}</i></p>
+          ${f.description ? `<p>${escapeHtml(f.description)}</p>` : ''}
+        </div>`).join('');
+    }
+
+    function renderPanelBody(card, status, forTimeline = false) {
       if (status === 'waiting') return `<div class="sp-block"><p>This stage hasn't run yet -- upload a paper to see live output here.</p></div>`;
 
       if (card.key === 'parse') {
         const e = liveEvents['parse'];
         if (!e || e.status !== 'done') return `<div class="sp-block"><p>${e ? e.message : 'Parsing...'}</p></div>`;
-        const tablesHtml = (e.tables || []).map(t => `
-        <div class="sp-block"><h5>${escapeHtml(t.table_id)}${t.caption ? ' -- ' + escapeHtml(t.caption) : ''}</h5>
-          ${renderMarkdownTable(t.markdown)}
-        </div>`).join('');
         return `
         <div class="sp-block"><h5>Title</h5><p>${escapeHtml(e.title)}</p></div>
         <div class="sp-block"><h5>Abstract (preview)</h5><p>${escapeHtml(e.abstract_preview)}...</p></div>
         <div class="sp-block"><h5>Sections</h5><p>${e.section_names.map(escapeHtml).join(', ')}</p></div>
         <div class="sp-block"><h5>Structure</h5><p>${e.num_tables} table(s), ${e.num_figures} figure(s), ${e.num_formulas ?? 0} formula(s), ${e.num_references} reference(s).</p></div>`
-        + tablesHtml;
+        + renderTablesPreview(e.tables);
       }
       if (card.key === 'vision') {
         const e = liveEvents['vision'];
         if (!e) return `<div class="sp-block"><p>Waiting on parse to finish.</p></div>`;
         if (e.status !== 'done') return `<div class="sp-block"><p>${escapeHtml(e.message || e.status)}</p></div>`;
         if (!e.figures.length) return `<div class="sp-block"><p>No figures were cropped.</p></div>`;
-        return e.figures.map(f => `
-        <div class="sp-block"><h5>${escapeHtml(f.figure_id)}</h5>
-          ${f.image_url ? `<img class="sp-figure-thumb" src="${escapeHtml(f.image_url)}" alt="${escapeHtml(f.figure_id)}" loading="lazy">` : ''}
-          <p><i>Caption: ${escapeHtml(f.caption || '(none detected)')}</i></p>
-          ${f.description ? `<p>${escapeHtml(f.description)}</p>` : ''}
-        </div>`).join('');
+        return renderFiguresPreview(e.figures);
       }
       if (card.key === 'formulas') {
         const e = liveEvents['formulas'];
@@ -2734,16 +3096,25 @@
           body += `<div class="sp-block"><h5>Chunks</h5><p>${chunkEv.num_chunks} total -- ${bySection}</p></div>`;
         }
         if (buildEv && buildEv.status === 'done') {
-          body += `<div class="sp-block"><h5>Index</h5><p>Hybrid dense (bge-small) + BM25 index built over ${buildEv.num_vectors} chunk(s). Query it below.</p></div>`;
-          body += `
-          <div class="sp-block">
-            <h5>Ask this paper a question</h5>
-            <div class="query-box-row">
-              <input class="query-input" id="ragQueryInput" placeholder="e.g. what evaluation metrics does the method use?">
-              <button class="query-btn" onclick="runRagQuery()">Search</button>
-            </div>
-            <div class="query-results" id="ragQueryResults"></div>
-          </div>`;
+          body += `<div class="sp-block"><h5>Index</h5><p>Hybrid dense (bge-small) + BM25 index built over ${buildEv.num_vectors} chunk(s).${forTimeline ? '' : ' Query it below.'}</p></div>`;
+          // The interactive query box is only meaningful in the docked
+          // right-hand panel (a single persistent instance wired to
+          // #ragQueryInput/#ragQueryResults via runRagQuery()) -- the Live
+          // Activity timeline can render this same RAG summary inside many
+          // expanded rows/re-renders at once, which would either duplicate
+          // those ids or leave stray disconnected copies. Keep the
+          // read-only chunk/index info there, drop the input+button+results.
+          if (!forTimeline) {
+            body += `
+            <div class="sp-block">
+              <h5>Ask this paper a question</h5>
+              <div class="query-box-row">
+                <input class="query-input" id="ragQueryInput" placeholder="e.g. what evaluation metrics does the method use?">
+                <button class="query-btn" onclick="runRagQuery()">Search</button>
+              </div>
+              <div class="query-results" id="ragQueryResults"></div>
+            </div>`;
+          }
         }
         return body || `<div class="sp-block"><p>Indexing in progress...</p></div>`;
       }
@@ -3077,6 +3448,15 @@
       const litMatches = liveEvents['literature_rag']?.result?.matches || [];
       document.getElementById('finalSupportingLit').innerHTML = litMatches.slice(0, 5)
         .map(m => `<li>${escapeHtml(m.title)}${m.year ? ' (' + m.year + ')' : ''}</li>`).join('') || '<li>No literature retrieved for this paper.</li>';
+
+      // Preview only -- the real extracted tables/figures (diagrams, charts,
+      // etc. all come through as "figures", Docling has no separate diagram
+      // category), same data and same renderer the docked panel's parse/
+      // vision tabs already use (see renderTablesPreview/renderFiguresPreview
+      // above). Not part of the AI's FinalReview schema/JSON export -- purely
+      // a reference view alongside the written report.
+      const visualsHtml = renderTablesPreview(liveEvents['parse']?.tables) + renderFiguresPreview(liveEvents['vision']?.figures);
+      document.getElementById('finalVisualsPreview').innerHTML = visualsHtml || '<p>No figures or tables were extracted from this paper.</p>';
     }
 
     function renderApprovalView() {
@@ -3085,6 +3465,14 @@
       if (!e || e.status !== 'done' || !e.result) return;
       const r = e.result;
       const approvalEv = liveEvents['human_approval'];
+      // Approve/Request Changes/Reject + the comment box are only meaningful
+      // once the run has actually reached the human-approval gate -- keep
+      // them hidden (see #approvalControls' default display:none) until then,
+      // rather than presenting always-live-looking controls before any
+      // decision is even possible (handleApprovalAction already no-ops
+      // without a real awaiting_approval event, but showing the controls
+      // beforehand read as broken/confusing rather than simply inactive).
+      document.getElementById('approvalControls').style.display = approvalEv ? '' : 'none';
       let banner = '';
       if (approvalEv && approvalEv.status === 'awaiting_approval') {
         banner = `<p style="color:var(--orange);font-weight:600;">⏸ The review run is parked at the approval gate -- the recommendation below will not be issued until you decide.</p>`;
@@ -3139,15 +3527,11 @@
       const comment = document.getElementById('approvalComment').value.trim();
       if (comment) body.comment = comment;
       if (action === 'changes') {
-        const override = prompt('Override the recommendation? Enter one of: accept, weak_accept, borderline, weak_reject, reject -- or leave blank to record your comment without overriding.', '');
-        if (override === null) return;   // human cancelled -- leave the run parked
-        const cleaned = override.trim().toLowerCase();
-        if (cleaned) {
-          if (!['accept', 'weak_accept', 'borderline', 'weak_reject', 'reject'].includes(cleaned)) {
-            alert(`"${override}" is not a valid recommendation.`); return;
-          }
-          body.override_recommendation = cleaned;
-        }
+        // A <select> can only ever hold one of the five valid values (or ""
+        // for no override), so unlike the old prompt() there's nothing left
+        // to validate here.
+        const override = document.getElementById('approvalOverrideSelect').value;
+        if (override) body.override_recommendation = override;
       }
 
       try {
@@ -3190,6 +3574,7 @@
         updateProgressBar();
         renderFinalReviewView();
         renderApprovalView();
+        switchTab('final');   // the decision is in -- take the reviewer straight to the finished report
         alert(`Recorded: ${titleCase(decided.decision || body.decision)}. This decision is now saved in human_approvals for run ${runId}.`);
       } catch (err) {
         alert(`Could not record this decision: ${err.message}\n\n(The review itself is unaffected -- this only means the approval record wasn't saved. Check that MySQL is reachable.)`);
@@ -3234,8 +3619,12 @@
         grid.innerHTML = `<div class="sp-block"><p>Health check failed: ${escapeHtml(err.message)}</p></div>`;
       }
     }
-    loadSystemHealth();
-    setInterval(loadSystemHealth, 15000); // re-probe every 15s so the strip reflects live state, not just page-load state
+    // System Health strip is hidden (see .health-strip's inline display:none
+    // above) -- loadSystemHealth() is left defined, just not invoked/polled,
+    // so re-enabling it later is a two-line revert (remove the display:none
+    // and uncomment the two lines below).
+    // loadSystemHealth();
+    // setInterval(loadSystemHealth, 15000); // re-probe every 15s so the strip reflects live state, not just page-load state
 
     // ---- Topbar "N/M pipeline stages implemented" -- computed from the
     // real CARDS list (every card except human_approval reflects a real,
@@ -3247,6 +3636,37 @@
     })();
 
     // ---- Review History (real rows from MySQL via GET /api/history) ----
+    // Real numbers from the last run of scripts/run_peerread_evaluation.py
+    // (see server/pipeline.py::load_eval_metrics) -- a snapshot of accuracy
+    // against PeerRead ground truth, not something computed per page load.
+    async function loadEvalMetrics() {
+      const box = document.getElementById('evalMetricsList');
+      box.innerHTML = `<div class="sp-block"><p>Loading...</p></div>`;
+      try {
+        const resp = await fetch('/api/eval-metrics');
+        if (!resp.ok) throw new Error((await resp.json()).detail || resp.statusText);
+        const data = await resp.json();
+        if (!data.runs.length) {
+          box.innerHTML = `<div class="sp-block"><p>No evaluation run yet -- run <code>scripts/run_peerread_evaluation.py</code> to measure real accuracy against PeerRead ground truth.</p></div>`;
+          return;
+        }
+        box.innerHTML = data.runs.map(r => `
+          <div class="eval-metrics-run">
+            <div class="eval-metrics-run-title">${escapeHtml(r.label)}</div>
+            <div class="eval-metrics-run-time">Generated ${new Date(r.generated_at).toLocaleString()} · ${r.n_usable}/${r.n_total} papers scored (${r.n_errored} errored)</div>
+            <div class="eval-metrics-grid">
+              <div class="eval-metrics-tile"><div class="eval-metrics-tile-label">Accuracy</div><div class="eval-metrics-tile-val">${(r.accuracy * 100).toFixed(1)}%</div></div>
+              <div class="eval-metrics-tile"><div class="eval-metrics-tile-label">F1</div><div class="eval-metrics-tile-val">${(r.f1 * 100).toFixed(1)}%</div></div>
+              <div class="eval-metrics-tile"><div class="eval-metrics-tile-label">Cohen's κ</div><div class="eval-metrics-tile-val">${r.cohen_kappa.toFixed(3)}</div></div>
+              <div class="eval-metrics-tile"><div class="eval-metrics-tile-label">Ground Truth Accept</div><div class="eval-metrics-tile-val">${(r.ground_truth_accept_rate * 100).toFixed(1)}%</div></div>
+              <div class="eval-metrics-tile"><div class="eval-metrics-tile-label">Predicted Accept</div><div class="eval-metrics-tile-val">${(r.predicted_accept_rate * 100).toFixed(1)}%</div></div>
+            </div>
+          </div>`).join('');
+      } catch (err) {
+        box.innerHTML = `<div class="sp-block"><p>Could not load evaluation metrics: ${escapeHtml(err.message)}</p></div>`;
+      }
+    }
+
     async function loadHistory() {
       const list = document.getElementById('historyList');
       list.innerHTML = `<div class="sp-block"><p>Loading...</p></div>`;
@@ -3302,12 +3722,164 @@
       }
     }
 
+    // ============================================================
+    // HUMAN REVIEW (independent, structured reviewer-style submission --
+    // separate from the AI's own FinalReview and from the Human Approval
+    // flow above. Persisted via POST/GET /api/human-review/{run_id}.)
+    // ============================================================
+
+    const HR_RATINGS = [
+      ['R', 'Reject'], ['WR', 'Weak Reject'], ['BR', 'Borderline Reject'],
+      ['BA', 'Borderline Accept'], ['WA', 'Weak Accept'], ['A', 'Accept'],
+    ];
+    let hrSelectedRating = null;
+    let hrSelectedConfidence = null;
+
+    function renderHumanReviewRatingButtons() {
+      document.getElementById('hrRatingButtons').innerHTML = HR_RATINGS.map(([code, label]) => `
+        <button type="button" class="rating-btn" data-code="${code}" onclick="selectHumanReviewRating('${code}')">${code} -- ${label}</button>`).join('');
+      document.getElementById('hrConfidenceButtons').innerHTML = [1, 2, 3, 4, 5].map(n => `
+        <button type="button" class="rating-btn" data-conf="${n}" onclick="selectHumanReviewConfidence(${n})">${n}</button>`).join('');
+    }
+
+    function selectHumanReviewRating(code) {
+      hrSelectedRating = code;
+      document.querySelectorAll('#hrRatingButtons .rating-btn').forEach(b => b.classList.toggle('selected', b.dataset.code === code));
+    }
+
+    function selectHumanReviewConfidence(n) {
+      hrSelectedConfidence = n;
+      document.querySelectorAll('#hrConfidenceButtons .rating-btn').forEach(b => b.classList.toggle('selected', Number(b.dataset.conf) === n));
+    }
+
+    function linesToList(textareaId) {
+      return document.getElementById(textareaId).value.split('\n').map(s => s.trim()).filter(Boolean);
+    }
+
+    function listToLines(arr) { return (arr || []).join('\n'); }
+
+    function collectHumanReviewPayload() {
+      return {
+        paper_id_display: document.getElementById('hrPaperId').value.trim() || null,
+        paper_title: document.getElementById('hrPaperTitle').value.trim() || null,
+        venue: document.getElementById('hrVenue').value || null,
+        venue_other: document.getElementById('hrVenueOther').value.trim() || null,
+        reviewer_name: document.getElementById('hrReviewerName').value.trim() || null,
+        conflict_of_interest: document.getElementById('hrCOI').value || null,
+        reviewer_expertise: document.getElementById('hrExpertise').value || null,
+        summary: document.getElementById('hrSummary').value.trim() || null,
+        strengths: linesToList('hrStrengths'),
+        weaknesses_major: linesToList('hrWeaknessesMajor'),
+        weaknesses_minor: linesToList('hrWeaknessesMinor'),
+        questions_for_rebuttal: linesToList('hrQuestions'),
+        final_conclusion: document.getElementById('hrConclusion').value.trim() || null,
+        rating: hrSelectedRating,
+        confidence: hrSelectedConfidence,
+        rating_justification: document.getElementById('hrJustification').value.trim() || null,
+      };
+    }
+
+    // Also used to clear the form (clearHumanReviewForm calls this with {}) --
+    // every field falls back to blank/none when a key is absent.
+    function populateHumanReviewForm(review) {
+      document.getElementById('hrPaperId').value = review.paper_id_display || '';
+      document.getElementById('hrPaperTitle').value = review.paper_title || '';
+      document.getElementById('hrVenue').value = review.venue || '';
+      document.getElementById('hrVenueOther').value = review.venue_other || '';
+      document.getElementById('hrVenueOther').style.display = review.venue === 'Other' ? 'block' : 'none';
+      document.getElementById('hrReviewerName').value = review.reviewer_name || '';
+      document.getElementById('hrCOI').value = review.conflict_of_interest || 'none';
+      document.getElementById('hrExpertise').value = review.reviewer_expertise || 'expert';
+      document.getElementById('hrSummary').value = review.summary || '';
+      document.getElementById('hrStrengths').value = listToLines(review.strengths);
+      document.getElementById('hrWeaknessesMajor').value = listToLines(review.weaknesses_major);
+      document.getElementById('hrWeaknessesMinor').value = listToLines(review.weaknesses_minor);
+      document.getElementById('hrQuestions').value = listToLines(review.questions_for_rebuttal);
+      document.getElementById('hrConclusion').value = review.final_conclusion || '';
+      document.getElementById('hrJustification').value = review.rating_justification || '';
+      selectHumanReviewRating(review.rating || null);
+      selectHumanReviewConfidence(review.confidence || null);
+      document.getElementById('hrStatusMsg').textContent = '';
+    }
+
+    function clearHumanReviewForm() { populateHumanReviewForm({}); }
+
+    // Convenience only -- copies the AI's summary/strengths/weaknesses/
+    // questions as a starting point. Deliberately never touches
+    // rating/confidence/justification/conclusion: those must reflect this
+    // reviewer's own independent judgment, not the AI's. Also deliberately
+    // leaves weaknesses_minor untouched -- separating major/technical from
+    // minor/presentation issues is exactly the judgment call this form asks
+    // a human reviewer to make, not something to auto-copy.
+    function prefillHumanReviewFromAiDraft() {
+      const e = liveEvents['final_report'];
+      if (!e || !e.result) { alert('AI draft not available yet -- wait for the pipeline to finish, or fill the form manually.'); return; }
+      document.getElementById('hrSummary').value = e.result.paper_summary || '';
+      document.getElementById('hrStrengths').value = listToLines(e.result.strengths);
+      document.getElementById('hrWeaknessesMajor').value = listToLines(e.result.weaknesses);
+      document.getElementById('hrQuestions').value = listToLines(e.result.questions_for_authors);
+    }
+
+    async function loadHumanReview() {
+      if (!document.getElementById('hrPaperTitle').value && liveEvents['parse']?.title) {
+        document.getElementById('hrPaperTitle').value = liveEvents['parse'].title;
+      }
+      if (!runId) return;
+      try {
+        const resp = await fetch(`/api/human-review/${runId}`);
+        if (!resp.ok) return;   // 404 -- no reviewed paper yet for this run_id, leave form as-is
+        const data = await resp.json();
+        if (data.found) populateHumanReviewForm(data.human_review);
+      } catch (err) { /* silent -- form just stays as-is */ }
+    }
+
+    async function submitHumanReview() {
+      if (!runId) { alert('Upload a paper first -- a human review needs an uploaded paper to attach to.'); return; }
+      const statusEl = document.getElementById('hrStatusMsg');
+      statusEl.textContent = 'Saving...';
+      try {
+        const resp = await fetch(`/api/human-review/${runId}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(collectHumanReviewPayload()),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { statusEl.textContent = data.detail || 'Save failed.'; return; }
+        statusEl.textContent = 'Saved at ' + new Date().toLocaleTimeString();
+      } catch (err) {
+        statusEl.textContent = 'Could not save: ' + err.message;
+      }
+    }
+
+    function exportHumanReviewJson() {
+      const blob = new Blob([JSON.stringify(collectHumanReviewPayload(), null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `human_review_${runId || 'output'}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    renderHumanReviewRatingButtons();
+    document.getElementById('hrVenue').addEventListener('change', () => {
+      document.getElementById('hrVenueOther').style.display = document.getElementById('hrVenue').value === 'Other' ? 'block' : 'none';
+    });
+    // Submit Review tab: fetch the latest saved draft (and autofill the
+    // parsed title if known) every time it's opened, same pattern as the
+    // History tab below.
+    document.querySelector('.topbar-tab[data-view="human-review"]').addEventListener('click', loadHumanReview);
+    if (runId) loadHumanReview();   // page was reloaded with ?run_id= already in the URL
+
     // History tab fetches fresh rows on every visit (plus a manual Refresh
     // button above the list, and again right after a decision is recorded --
     // see handleApprovalAction()) rather than once per page load: a run
     // completed or decided after your last visit would otherwise sit stale
     // until a full page reload, since nothing else pushes history updates.
-    document.querySelector('.topbar-tab[data-view="history"]').addEventListener('click', loadHistory);
+    document.querySelector('.topbar-tab[data-view="history"]').addEventListener('click', () => {
+      loadHistory();
+      loadEvalMetrics();
+    });
 
     // Initial render so cards show "Waiting" before any upload.
     renderCards();

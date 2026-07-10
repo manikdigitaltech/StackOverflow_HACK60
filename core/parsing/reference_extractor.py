@@ -1,7 +1,7 @@
 """
 Best-effort extraction of a structured reference list from the paper's
 References/Bibliography section. This deliberately doesn't try to parse
-full citation metadata (author lists, venues, etc.) — just enough
+full citation metadata (author lists, venues, etc.) - just enough
 (raw text + year, when detectable) to support the Citation Agent later.
 """
 
@@ -27,7 +27,7 @@ def extract_references(text_items: List[Tuple[str, str, Optional[int]]]) -> List
             in_references = True
             continue
         if is_heading and in_references:
-            # Hit a new heading after References started (e.g. Appendix) — stop collecting.
+            # Hit a new heading after References started (e.g. Appendix) - stop collecting.
             break
         if in_references and text:
             ref_text_parts.append(text)
@@ -38,7 +38,7 @@ def extract_references(text_items: List[Tuple[str, str, Optional[int]]]) -> List
 
     raw_entries = [e.strip() for e in _REF_SPLIT_PATTERN.split(full_text) if e.strip()]
     if len(raw_entries) <= 1:
-        # No numbered markers found — fall back to one entry per line.
+        # No numbered markers found - fall back to one entry per line.
         raw_entries = [e.strip() for e in full_text.split("\n") if e.strip()]
 
     references = []

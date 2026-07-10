@@ -1,4 +1,4 @@
-# Rebuttal-Aware Re-Review — Revising the Verdict After an Author Response
+# Rebuttal-Aware Re-Review - Revising the Verdict After an Author Response
 
 *Covers `core/graph/rebuttal.py`, the `rebuttal_feedback` channel in
 `core/agents/revision.py` + the 4 assessment agents, and the
@@ -9,13 +9,13 @@ author rebuttal.*
 ## In very simple terms (read this first)
 
 When a scientist submits a paper, reviewers read it and say "here's what's
-wrong." Normally the authors don't just accept that — they **write back** and
-defend their work: *"You said we're missing an experiment — actually, look at
+wrong." Normally the authors don't just accept that - they **write back** and
+defend their work: *"You said we're missing an experiment - actually, look at
 Table 4, we did it."* That written defense is called a **rebuttal**.
 
 **Rebuttal feedback = taking that author's reply and showing it to our AI
 reviewer so it can reconsider its score.** Maybe the authors made a good point
-and the AI upgrades its verdict from "reject" to "accept" — or maybe the reply
+and the AI upgrades its verdict from "reject" to "accept" - or maybe the reply
 is weak and the AI keeps its original opinion.
 
 Think of it like a teacher grading an essay, the student saying "but I did
@@ -53,7 +53,7 @@ grade.
 ```
 
 **The key point:** rebuttal feedback kicks in **after** the first full review is
-approved (step 6 → 7). It is not a small separate step — it re-runs the *entire*
+approved (step 6 → 7). It is not a small separate step - it re-runs the *entire*
 review pipeline, just with the authors' reply added to what each agent reads. So
 the new verdict still goes through every quality check **and** still needs a
 human's approval before it's final.
@@ -63,17 +63,17 @@ The rest of this document explains the same thing in technical detail.
 ## What a rebuttal is, and why re-review
 
 Real peer review is a conversation, not a verdict handed down once. After
-reviewers submit their assessment, the paper's **authors get to respond** — a
+reviewers submit their assessment, the paper's **authors get to respond** - a
 *rebuttal*. They answer specific concerns:
 
-> "The reviewer says we lack an ImageNet baseline — we've added it in Table 4."
-> "The reviewer flags reproducibility — we've now released the code and full
+> "The reviewer says we lack an ImageNet baseline - we've added it in Table 4."
+> "The reviewer flags reproducibility - we've now released the code and full
 > hyperparameters."
 
 Reviewers then **reconsider** in light of that response and frequently revise
 their score. A rebuttal-aware re-review reproduces exactly this second round:
 feed the system the authors' rebuttal, let it re-examine its own assessment,
-and see whether — and which way — its recommendation moves.
+and see whether - and which way - its recommendation moves.
 
 ## The core idea: a rebuttal is just a second run of the same graph
 
@@ -81,7 +81,7 @@ Rather than a bespoke "re-review" code path, a re-review is **the same compiled
 review graph, run again, seeded with the author's `rebuttal_text`**. The four
 assessment agents fold the rebuttal into their prompts and reconsider their
 verdicts; reflection and final review then synthesize a revised recommendation,
-which — like any recommendation — parks at the **mandatory human-approval gate**
+which - like any recommendation - parks at the **mandatory human-approval gate**
 before it is issued (see `LANGGRAPH_ORCHESTRATION.md` for the gate).
 
 Reusing the whole graph is the point: the revised verdict passes through the
@@ -118,7 +118,7 @@ evidence_repro ──────┘                                            
 rebuttal into a prompt-ready block that the assessment agents render. It returns
 `""` when `inputs["rebuttal_text"]` is absent (i.e. a normal first-pass review),
 so it can always be passed straight into `PromptManager.render()` without a
-None-check — the same contract as `revision_feedback_block`.
+None-check - the same contract as `revision_feedback_block`.
 
 When a rebuttal is present, each assessment agent's prompt gains:
 
@@ -131,7 +131,7 @@ the authors pushed back):
 <the author's rebuttal text>
 ```
 
-### It is a *separate channel* from `revision_feedback` — on purpose
+### It is a *separate channel* from `revision_feedback` - on purpose
 
 The codebase already had one injection channel: `revision_feedback`, set by the
 self-reflection revision loop. These two look similar but say opposite things,
@@ -140,7 +140,7 @@ so they are kept distinct rather than overloading one field:
 | | `revision_feedback` | `rebuttal_feedback` |
 |---|---|---|
 | Set by | The self-reflection/verifier step (internal) | An external author rebuttal |
-| Framing | "You were flagged — fix this before finalizing." | "The authors responded — reconsider, but concede only where warranted." |
+| Framing | "You were flagged - fix this before finalizing." | "The authors responded - reconsider, but concede only where warranted." |
 | Trigger key | `state["revision_feedback"]` | `state["rebuttal_text"]` |
 | When | Bounded revision loop, mid-review | A whole new re-review run, after the original |
 
@@ -164,7 +164,7 @@ the verdict moved on the 5-way scale
 }
 ```
 
-This delta is the actual output of interest — not just the new verdict, but
+This delta is the actual output of interest - not just the new verdict, but
 *whether the rebuttal was persuasive and in which direction*.
 
 ## How to use it
@@ -209,27 +209,27 @@ same `resume_with_approval` path works for it unchanged (`server/pipeline.py`).
 
 ## What changed to add this
 
-- `core/agents/revision.py` — added `rebuttal_feedback_block()` alongside the
+- `core/agents/revision.py` - added `rebuttal_feedback_block()` alongside the
   existing `revision_feedback_block()`.
-- `core/config/prompts.yaml` — added a `{rebuttal_feedback}` placeholder to the
+- `core/config/prompts.yaml` - added a `{rebuttal_feedback}` placeholder to the
   4 assessment-agent prompts (novelty, methodology, citation,
   evidence_reproducibility).
-- The 4 assessment agents — pass `rebuttal_feedback=rebuttal_feedback_block(inputs)`
+- The 4 assessment agents - pass `rebuttal_feedback=rebuttal_feedback_block(inputs)`
   into their `.render()` call.
-- `core/graph/state.py` — added the `rebuttal_text` state key.
-- `core/graph/nodes.py` — the 4 assessment nodes thread `rebuttal_text` through
+- `core/graph/state.py` - added the `rebuttal_text` state key.
+- `core/graph/nodes.py` - the 4 assessment nodes thread `rebuttal_text` through
   to their agent.
-- `core/graph/rebuttal.py` — new: `run_rebuttal_rereview()` +
+- `core/graph/rebuttal.py` - new: `run_rebuttal_rereview()` +
   `compare_recommendations()`.
-- `server/pipeline.py` / `server/main.py` — new `run_rebuttal_rereview()` server
+- `server/pipeline.py` / `server/main.py` - new `run_rebuttal_rereview()` server
   function + `POST /api/rebuttal/{run_id}` endpoint.
 
 ## Verified
 
-`scripts/test_rebuttal_rereview.py` (fast, fully mocked — runs in
+`scripts/test_rebuttal_rereview.py` (fast, fully mocked - runs in
 milliseconds): confirms the rebuttal actually reaches the assessment agents on a
 re-review (and is absent on a first-pass review), the revised verdict is drafted
-and parks at the approval gate, and the comparison is correct — a rebuttal that
+and parks at the approval gate, and the comparison is correct - a rebuttal that
 resolves the reviewer's concern moves the recommendation
 `weak_reject → weak_accept` (`direction=more_favorable, steps=+2`). The existing
 `test_human_approval.py` and `test_graph_topology.py` still pass unchanged.
