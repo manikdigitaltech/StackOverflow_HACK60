@@ -528,21 +528,30 @@ visual_reference_agent:
     {{"reference_verdicts": [{{"mention": "string", "target_id": "string", "exists": true, "purpose": "result_support", "verdict": "supported", "evidence": "string", "note": "string"}}], "overall_quality": "good", "summary": "string"}}
     (every entry's "exists" must be true and "target_id" must exactly match
     one of the bracketed ids given below -- you are only shown targets that
-    were confirmed to exist, so never emit "missing_target" here.)
+    were confirmed to exist, so never emit "missing_target" here. The
+    EXTRACTED FIGURES/TABLES list below is caption context ONLY, to help you
+    understand what each target actually shows -- it is not a second list of
+    targets to judge. Emit exactly one entry per bracketed id under IN-TEXT
+    REFERENCES, and no others, even if EXTRACTED FIGURES/TABLES lists
+    additional figures/tables that were never referenced by number in the
+    prose.)
   user: |
-    IN-TEXT REFERENCES (grouped by target, with surrounding prose excerpts):
+    IN-TEXT REFERENCES (grouped by target, with surrounding prose excerpts) --
+    this is the complete and only list of targets to produce a verdict for:
     {targets}
 
-    EXTRACTED FIGURES/TABLES (captions):
+    EXTRACTED FIGURES/TABLES (captions -- background context only, to help
+    you judge the references above; do NOT produce verdict entries for
+    anything in this list that isn't also a bracketed id above):
     {extracted_visuals}
 
-    Task: for every target listed under IN-TEXT REFERENCES above, produce
-    exactly one verdict entry -- classify its purpose, judge whether the
-    surrounding prose meaningfully and accurately uses it, and ground that
-    judgment in a quoted/paraphrased excerpt. Then set overall_quality
-    ("poor"/"fair"/"good"/"excellent") based on how many targets are
-    "supported" vs. "weak"/"misleading"/"uncertain", and write a 1-2 sentence
-    summary.
+    Task: for every target listed under IN-TEXT REFERENCES above -- and ONLY
+    those targets -- produce exactly one verdict entry: classify its purpose,
+    judge whether the surrounding prose meaningfully and accurately uses it,
+    and ground that judgment in a quoted/paraphrased excerpt. Then set
+    overall_quality ("poor"/"fair"/"good"/"excellent") based on how many
+    targets are "supported" vs. "weak"/"misleading"/"uncertain", and write a
+    1-2 sentence summary.
 
     Respond with ONLY the JSON object described above.
   output_schema: VisualReferenceAssessment

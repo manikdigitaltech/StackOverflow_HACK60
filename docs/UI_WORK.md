@@ -1,8 +1,8 @@
-# Live Pipeline Dashboard — UI Work
+# Live Pipeline Dashboard - UI Work
 
 *Covers `server/` (FastAPI backend) and `ai_paper_reviewer_ui.html` (the
 dashboard). This is a real-time monitoring surface for the pipeline, built
-and iterated on this session — not a mockup.*
+and iterated on this session - not a mockup.*
 
 ## Why a custom FastAPI + SSE dashboard, not Streamlit
 
@@ -11,18 +11,18 @@ faster path for a Python-only team (no separate frontend, built-in
 upload/session-state/chart widgets). It wasn't used here for one specific
 reason: **Streamlit's rerun-on-interaction execution model isn't built for
 push-based live updates.** Watching a pipeline stage update *while it runs*
-— the actual requirement — needs Server-Sent Events or WebSockets pushing
+— the actual requirement - needs Server-Sent Events or WebSockets pushing
 state as it changes, not a script re-executing top-to-bottom on each
 interaction. A real backend + SSE gets genuine push-based real-time for free.
 
 manik's original Streamlit page stubs (`app/main.py`, `app/pages/*.py`) were
-never built out (still 0 lines each) — left in place as dead scaffolding in
+never built out (still 0 lines each) - left in place as dead scaffolding in
 case a later, non-real-time page (history, settings, an eventual metrics
 dashboard) wants Streamlit's native chart/table widgets instead.
 
 ## Backend (`server/`)
 
-- **`server/pipeline.py`** — `run_pipeline(run_id, pdf_path)`: a generator
+- **`server/pipeline.py`** - `run_pipeline(run_id, pdf_path)`: a generator
   yielding one event per real stage as it *actually* finishes (parse → vision
   → chunk → paper-RAG build → literature-RAG → novelty → the full 10-agent
   LangGraph review → the human-approval interrupt), persisting each judgment
@@ -31,9 +31,9 @@ dashboard) wants Streamlit's native chart/table widgets instead.
   persists the decision), `query_paper_index()` (live hybrid retrieval
   against the just-built paper index), and `check_system_health()` (real
   probes: Ollama reachability + pulled models, MySQL reachability, docling
-  installed, literature index built, checkpoint DB present — every status is
+  installed, literature index built, checkpoint DB present - every status is
   a real check, not a hardcoded "Healthy").
-- **`server/main.py`** — `POST /api/upload`, `GET /api/stream/{run_id}` (SSE),
+- **`server/main.py`** - `POST /api/upload`, `GET /api/stream/{run_id}` (SSE),
   `GET /api/query/{run_id}`, `POST /api/approval/{run_id}`, `GET /api/health`,
   `GET /api/history`, `GET /api/history/{trace_id}`. Serves the dashboard
   HTML directly via scoped routes, not a directory mount over the whole repo.
@@ -44,16 +44,16 @@ Started from a hand-designed static mockup with 100% hardcoded fake data;
 every piece below replaced fake JS with real backend calls, one iteration at
 a time based on direct feedback:
 
-1. **Real wiring** — file upload → `EventSource` → live-updating agent cards,
+1. **Real wiring** - file upload → `EventSource` → live-updating agent cards,
    a top progress bar computed from real stage counts, a docked detail panel
    showing real per-stage data (parsed title/sections, VLM figure
    descriptions, RAG chunk counts + a live query box).
 2. **Sidebar removed.** A full persistent nav sidebar was mostly dead weight
-   for a page with exactly one job (watch a live run) — replaced with a
+   for a page with exactly one job (watch a live run) - replaced with a
    56px top bar (logo + 3 tabs), freeing width for a real 3-pane layout.
 3. **3-pane redesign**: paper info + compact pipeline status list (left,
    sticky) · full-detail Live Activity log (center, wide) · docked
-   auto-following detail panel (right, sticky) — mirroring the same sticky
+   auto-following detail panel (right, sticky) - mirroring the same sticky
    treatment on both flanks so neither scrolls out of view while the center
    log grows.
 4. **Redundancy fix.** The activity log and the docked panel were both
@@ -62,28 +62,28 @@ a time based on direct feedback:
    timestamp/elapsed), the docked panel is the *only* place with the rich
    derived description.
 5. **Honesty fix.** Every non-running status was defaulting to the same
-   green checkmark — including the 7 "not yet implemented" stages, which
+   green checkmark - including the 7 "not yet implemented" stages, which
    read as if they'd succeeded. Now `not_implemented`/`not_available`/
    `skipped` get a distinct neutral dash icon; only a real completed stage
    gets the green check.
 6. **Terminal-style trace, "like Claude's own output."** Rebuilt the Live
    Activity log as a monospace, dark-console trace with entries threaded on
    a connecting vertical line + colored dot per entry (green/blue-pulsing/
-   red/gray by status) — a commit-graph-style timeline rather than a stack
+   red/gray by status) - a commit-graph-style timeline rather than a stack
    of generic cards.
 7. **Feels live, not just accurate.** Each new line now slides/fades in on
    arrival, and its detail message **types out character-by-character with a
-   blinking cursor** rather than snapping fully-formed into view — the
+   blinking cursor** rather than snapping fully-formed into view - the
    underlying event was already real and instant; this reveals it the way a
    generated response reads, rather than a static log dump. (Explicitly not
-   literal token-by-token LLM streaming — that requires a real LLM call
+   literal token-by-token LLM streaming - that requires a real LLM call
    streaming, which nothing here does yet; this is an honest client-side
    reveal of an already-complete message.)
 
 ## Performance note
 
 Removed `backdrop-filter: blur()` from the repeated per-stage cards (up to 11
-in the compact left column) — stacking that many expensive blur layers next
+in the compact left column) - stacking that many expensive blur layers next
 to sticky-positioned panels is a known cause of janky scroll; a solid darker
 background reads almost identically at a fraction of the repaint cost.
 
@@ -110,12 +110,12 @@ Two agents needed new cards that didn't exist before (`paper_understanding`
 and `figure_table`, the graph's LLM nodes, are distinct from the pre-existing
 `parse`/`vision` cards which cover Docling parsing and raw VLM figure
 description respectively) plus a second novelty card (`novelty_llm_agent`,
-alongside the pre-existing embedding-based `novelty_agent`) — see
+alongside the pre-existing embedding-based `novelty_agent`) - see
 `NOVELTY_AGENT.md` for why there are two novelty implementations.
 
 The **Final Review** and **Human Approval** views were, until this session,
 100% hardcoded fake data (a fabricated "4.1/5" score, invented strengths
-about a paper that was never uploaded) — neither was wired to any event at
+about a paper that was never uploaded) - neither was wired to any event at
 all. Both now render the real `final_report` event's structured output
 (`FinalReview`: summary, strengths, weaknesses, questions for authors,
 novelty/citation/reproducibility/evidence analysis, recommendation +
@@ -126,13 +126,13 @@ low-through-high, never a numeric score no agent emits) via a category→bar
 percentage mapping. "Export JSON" is now a real client-side download of the
 actual `FinalReview` payload; "Download PDF" honestly alerts that it isn't
 implemented rather than doing nothing silently. Approve/Request
-Changes/Reject buttons genuinely persist a decision now — see
+Changes/Reject buttons genuinely persist a decision now - see
 "Human-in-the-loop approval" below (this was written before that landed).
 
 The docked panel's Overview tab gained real per-agent rendering for every
 newly-wired card (previously fell through to a raw JSON dump). The
-Reasoning/Evidence/Memory tabs — static "not built yet" placeholders since
-the agents genuinely didn't exist — are now dynamic: Reasoning shows each
+Reasoning/Evidence/Memory tabs - static "not built yet" placeholders since
+the agents genuinely didn't exist - are now dynamic: Reasoning shows each
 agent's real `reasoning`/`summary` field (or, for Final Review, its
 novelty/citation/reproducibility/evidence analysis); Evidence shows the real
 verdict lists (claim verdicts, coverage verdicts, aspect verdicts,
@@ -147,7 +147,7 @@ The review graph genuinely parks at a LangGraph `interrupt()` after
 surfaces this as an `awaiting_approval` SSE event on the `human_approval`
 stage (with the drafted recommendation in `request`), and
 `POST /api/approval/{run_id}` resumes the parked run with the human's
-decision via `Command(resume=...)` — the endpoint guards against unknown
+decision via `Command(resume=...)` - the endpoint guards against unknown
 run_ids and runs that aren't actually awaiting approval (404). The UI's
 Approve/Request Changes/Reject buttons are live: they POST the decision
 (plus the optional comment box, and an optional recommendation override on
@@ -155,7 +155,7 @@ Request Changes), then update the approval card, progress bar, activity log,
 and Final Review/Approval views with the decided state. Two things happen on
 resume, not one: the graph itself resumes for real (a genuine LangGraph
 interrupt/resume, not an after-the-fact record), and the decision is written
-to MySQL's `human_approvals` table via `ApprovalRepository` — so it survives
+to MySQL's `human_approvals` table via `ApprovalRepository` - so it survives
 a server restart and shows up in the History tab, even though the graph's
 own in-memory checkpointer does not survive one (the resume itself only
 works in the same server process that ran the review, same as every other
@@ -163,6 +163,6 @@ piece of transient run state in `_RUNS`).
 
 ## Not yet done
 
-Nothing left unbuilt in this area — see `docs/CONTEXT.md` §7 item 2 for the
+Nothing left unbuilt in this area - see `docs/CONTEXT.md` §7 item 2 for the
 one real limitation (in-memory checkpointer means a parked run doesn't
 survive a server restart).

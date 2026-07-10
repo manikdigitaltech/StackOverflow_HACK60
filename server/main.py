@@ -30,10 +30,13 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from core.db.models import ConflictOfInterest, HumanReviewRating, ReviewerExpertise, Venue
+from core.db.repositories.human_review_repository import HumanReviewRepository
 from core.db.repositories.review_repository import ReviewRepository
 from core.db.session import get_session
 from server.pipeline import (
     check_system_health,
+    load_eval_metrics,
     query_paper_index,
     resume_with_approval,
     run_pipeline,
@@ -180,9 +183,113 @@ def approval(run_id: str, body: ApprovalRequest):
     return result
 
 
+class HumanReviewRequest(BaseModel):
+    """A person's own structured review of the paper, following
+    Generic_Review_Template_Agentic_AI.docx -- entirely independent of the
+    AI's FinalReview/HumanApproval flow above: no shared schema, no shared
+    enum, no interaction with the graph. `rating` is this template's 6-point
+    scale (R/WR/BR/BA/WA/A), not FinalReview's 5-point Recommendation."""
+    paper_id_display: Optional[str] = None
+    paper_title: Optional[str] = None
+    venue: Optional[Literal["MICCAI", "BMVC", "NeurIPS", "IJCB", "CVPR", "Other"]] = None
+    venue_other: Optional[str] = None
+    reviewer_name: Optional[str] = None
+    conflict_of_interest: Optional[Literal["none", "declared"]] = None
+    reviewer_expertise: Optional[Literal["expert", "knowledgeable", "passing_familiarity"]] = None
+    summary: Optional[str] = None
+    strengths: list[str] = []
+    weaknesses_major: list[str] = []
+    weaknesses_minor: list[str] = []
+    questions_for_rebuttal: list[str] = []
+    final_conclusion: Optional[str] = None
+    rating: Optional[Literal["R", "WR", "BR", "BA", "WA", "A"]] = None
+    confidence: Optional[int] = Field(default=None, ge=1, le=5)
+    rating_justification: Optional[str] = None
+
+
+_VENUE_BY_VALUE = {v.value: v for v in Venue}
+_COI_BY_VALUE = {v.value: v for v in ConflictOfInterest}
+_EXPERTISE_BY_VALUE = {v.value: v for v in ReviewerExpertise}
+_RATING_BY_VALUE = {v.value: v for v in HumanReviewRating}
+
+
+def _serialize_human_review(review) -> dict:
+    return {
+        "paper_id_display": review.paper_id_display,
+        "paper_title": review.paper_title,
+        "venue": review.venue.value if review.venue else None,
+        "venue_other": review.venue_other,
+        "reviewer_name": review.reviewer_name,
+        "conflict_of_interest": review.conflict_of_interest.value if review.conflict_of_interest else None,
+        "reviewer_expertise": review.reviewer_expertise.value if review.reviewer_expertise else None,
+        "summary": review.summary,
+        "strengths": review.strengths or [],
+        "weaknesses_major": review.weaknesses_major or [],
+        "weaknesses_minor": review.weaknesses_minor or [],
+        "questions_for_rebuttal": review.questions_for_rebuttal or [],
+        "final_conclusion": review.final_conclusion,
+        "rating": review.rating.value if review.rating else None,
+        "confidence": review.confidence,
+        "rating_justification": review.rating_justification,
+        "updated_at": review.updated_at.isoformat() if review.updated_at else None,
+    }
+
+
+@app.post("/api/human-review/{run_id}")
+def submit_human_review(run_id: str, body: HumanReviewRequest):
+    """Submit or update this run's independent, human-written structured
+    review. Re-POSTing overwrites the same row (one per reviewed paper,
+    see HumanReviewRepository.upsert) rather than creating a duplicate."""
+    try:
+        with get_session() as session:
+            reviewed_paper = ReviewRepository(session).get_by_trace_id(run_id)
+            if reviewed_paper is None:
+                raise HTTPException(404, f"No reviewed paper found for run_id={run_id!r}. Upload the paper first.")
+            fields = body.model_dump(exclude={"venue", "conflict_of_interest", "reviewer_expertise", "rating"})
+            fields["venue"] = _VENUE_BY_VALUE.get(body.venue) if body.venue else None
+            fields["conflict_of_interest"] = _COI_BY_VALUE.get(body.conflict_of_interest) if body.conflict_of_interest else None
+            fields["reviewer_expertise"] = _EXPERTISE_BY_VALUE.get(body.reviewer_expertise) if body.reviewer_expertise else None
+            fields["rating"] = _RATING_BY_VALUE.get(body.rating) if body.rating else None
+            review = HumanReviewRepository(session).upsert(reviewed_paper.id, **fields)
+            return {"ok": True, "human_review": _serialize_human_review(review)}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(503, f"Could not save human review -- MySQL unreachable or not migrated: {exc}")
+
+
+@app.get("/api/human-review/{run_id}")
+def get_human_review(run_id: str):
+    """Fetch a previously-saved human-review draft/submission for this run,
+    if any -- used to restore form state after a page refresh."""
+    try:
+        with get_session() as session:
+            reviewed_paper = ReviewRepository(session).get_by_trace_id(run_id)
+            if reviewed_paper is None:
+                raise HTTPException(404, f"No reviewed paper found for run_id={run_id!r}.")
+            review = HumanReviewRepository(session).get_by_reviewed_paper_id(reviewed_paper.id)
+            if review is None:
+                return {"found": False}
+            return {"found": True, "human_review": _serialize_human_review(review)}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(503, f"Human review unavailable -- MySQL unreachable or not migrated: {exc}")
+
+
 @app.get("/api/health")
 def health():
     return check_system_health()
+
+
+@app.get("/api/eval-metrics")
+def eval_metrics():
+    """Real accuracy/F1/Cohen's-kappa numbers from the PeerRead evaluation
+    harness (scripts/run_peerread_evaluation.py), read from whichever
+    output_results/*.metrics.json file(s) exist -- a snapshot from the last
+    time that harness was run, not a live per-request statistic (see
+    load_eval_metrics's own docstring)."""
+    return {"runs": load_eval_metrics()}
 
 
 @app.get("/api/history")

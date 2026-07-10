@@ -1,4 +1,4 @@
-# Guardrails — What Protects the Reviewer, and Why (in plain terms)
+# Guardrails - What Protects the Reviewer, and Why (in plain terms)
 
 This system reads a PDF that **we did not write** and feeds its text to a
 language model that then makes an accept/reject decision. That's a risky
@@ -22,7 +22,7 @@ what's still open), see [`OWASP_LLM_SECURITY.md`](OWASP_LLM_SECURITY.md).
 
 ## The guardrails, one by one
 
-### 1. Clean the PDF text — `sanitize_pdf_text()`
+### 1. Clean the PDF text - `sanitize_pdf_text()`
 
 **What it does:** Before any agent sees the paper, it strips two kinds of nasty
 things out of every field (title, abstract, sections, tables, figure captions,
@@ -45,7 +45,7 @@ about it. **(Live.)**
 
 ---
 
-### 2. Wrap untrusted text in a labeled box — `format_secure_payload()`
+### 2. Wrap untrusted text in a labeled box - `format_secure_payload()`
 
 **What it does:** Takes a piece of untrusted text, cleans it (using #1), and
 puts it inside clearly labeled tags, e.g. `<author_rebuttal> ... </author_rebuttal>`.
@@ -60,15 +60,15 @@ suspect and reading a note *from* the suspect and doing what it says.
 **Where it runs:** In the author-rebuttal step
 ([`core/agents/revision.py`](../core/agents/revision.py) →
 `rebuttal_feedback_block`). The rebuttal is text an author types in response to
-our review — it's untrusted, and unlike the PDF it doesn't go through the parser,
+our review - it's untrusted, and unlike the PDF it doesn't go through the parser,
 so we sanitize and box it right before it enters the prompt. **(Live.)**
 
 ---
 
-### 3. Check the answer before trusting it — `verify_output_safety()`
+### 3. Check the answer before trusting it - `verify_output_safety()`
 
 **What it does:** After the model replies, it looks at the reply for signs that
-the model got hijacked — for example, it started repeating our own secret
+the model got hijacked - for example, it started repeating our own secret
 instructions (`"You are an expert ICLR/NeurIPS area chair..."`) instead of
 actually reviewing the paper. If it sees that, the answer is rejected.
 
@@ -84,7 +84,7 @@ Putting it there means all 10 agents get output-checked for free. **(Live.)**
 
 ---
 
-### 4. Safely package a rebuttal round — `prepare_rebuttal_payload()`
+### 4. Safely package a rebuttal round - `prepare_rebuttal_payload()`
 
 **What it does:** A convenience helper that bundles the author's rebuttal
 (securely wrapped, via #2) together with the earlier review results into one
@@ -99,21 +99,21 @@ itself as the reviewer's own prior conclusion. **(Available helper.)**
 
 ## Guardrails that live outside the guardrails file
 
-These aren't in `guardrails.py`, but they do the same job — keeping the review
-honest — so they belong in the same mental bucket:
+These aren't in `guardrails.py`, but they do the same job - keeping the review
+honest - so they belong in the same mental bucket:
 
-### 5. Don't compare a paper to itself — RAG "leakage guard"
+### 5. Don't compare a paper to itself - RAG "leakage guard"
 
 **What:** The literature search index (Index B) refuses to return the paper
 currently under review as one of its own "related works."
 
 **Why (simple):** If we asked "is this paper novel?" and the search handed back
-*the same paper*, the model would conclude "not novel at all — there's an
+*the same paper*, the model would conclude "not novel at all - there's an
 identical paper!" That's a false result caused by the paper leaking into its own
 comparison set. The guard prevents that self-match. See
 [`core/rag/indexes/literature_index.py`](../core/rag/indexes/literature_index.py).
 
-### 6. Make sure citations are real — grounding check
+### 6. Make sure citations are real - grounding check
 
 **What:** When the model says "this overlaps with paper X," we verify paper X
 was actually in the retrieved literature (allowing for tiny reformatting, like
@@ -124,7 +124,7 @@ don't exist ("hallucination"). Checking every cited title against what was
 really retrieved catches made-up citations before they land in a review. See
 [`core/utils/grounding.py`](../core/utils/grounding.py).
 
-### 7. Force the answer into a fixed shape — structured-output validation
+### 7. Force the answer into a fixed shape - structured-output validation
 
 **What:** Every agent must return JSON matching a strict schema (allowed rating
 values, required fields). Invalid answers get one automatic repair attempt for
@@ -135,7 +135,7 @@ a fixed form (e.g. rating must be one of `reject/weak_reject/.../accept`) means 
 confused or manipulated model can't quietly slip in an out-of-range or malformed
 verdict. See [`core/llm/structured_output.py`](../core/llm/structured_output.py).
 
-### 8. Optional quality gates — DeepEval & RAGAS
+### 8. Optional quality gates - DeepEval & RAGAS
 
 **What:** Offline tools that score *how well* an agent reasoned (did it check
 claims against evidence? did retrieval bring back relevant text?) rather than

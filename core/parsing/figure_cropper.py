@@ -8,7 +8,7 @@ increasing upward), while PyMuPDF's page rect uses origin top-left, y
 increasing downward. This module converts between the two.
 
 If crops come out upside-down, empty, or offset from the actual figure,
-this conversion is the first place to check — print the raw bbox and
+this conversion is the first place to check - print the raw bbox and
 page.rect to compare against what actually got cropped.
 """
 

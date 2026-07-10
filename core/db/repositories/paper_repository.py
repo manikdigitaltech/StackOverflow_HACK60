@@ -1,4 +1,4 @@
-"""Repository for the `papers` table — literature papers ingested into KB1."""
+"""Repository for the `papers` table - literature papers ingested into KB1."""
 
 from typing import Optional
 from sqlalchemy.orm import Session

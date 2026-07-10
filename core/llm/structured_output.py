@@ -91,13 +91,24 @@ def _attempt_literal_repair(data: Dict[str, Any], error: ValidationError, output
         invalid = err.get("input")
         if not isinstance(invalid, str):
             continue
-        candidate = _LITERAL_SYNONYM_REPAIRS.get(invalid.strip().lower())
-        if candidate is None:
-            continue
         loc = err["loc"]
         choices = _literal_choices_at_path(output_model, loc)
-        if choices is None or candidate not in choices:
+        if choices is None:
             continue
+
+        candidate = _LITERAL_SYNONYM_REPAIRS.get(invalid.strip().lower())
+        if candidate is None and not invalid.strip() and "other" in choices:
+            # A model that produces an entry it shouldn't (e.g.
+            # VisualReferenceAgent's model inventing a "missing_target"
+            # verdict for a figure it was told never to report on) has
+            # nothing real to classify that entry's Literal field with, and
+            # leaves it "" rather than picking a listed value. Map it to the
+            # schema's own catch-all rather than failing the whole call over
+            # one hallucinated-but-otherwise-harmless entry.
+            candidate = "other"
+        if candidate is None or candidate not in choices:
+            continue
+
         _set_at_path(data, loc, candidate)
         logger.warning(
             "Repaired %s: field %s had out-of-scale value %r, mapped to %r.",

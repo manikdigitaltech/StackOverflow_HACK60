@@ -94,7 +94,7 @@ class DoclingParser:
                 caption=self._resolve_caption(table_item, doc),
             ))
 
-        # --- Figures (bbox + page + caption only — no pixels here) ---
+        # --- Figures (bbox + page + caption only - no pixels here) ---
         figures: List[Figure] = []
         for i, picture_item in enumerate(doc.pictures):
             page_no = picture_item.prov[0].page_no if getattr(picture_item, "prov", None) else None
@@ -184,13 +184,13 @@ class DoclingParser:
             try:
                 return table_item.export_to_html()
             except Exception:
-                return "(table content unavailable — check docling version)"
+                return "(table content unavailable - check docling version)"
 
     @staticmethod
     def _resolve_caption(item, doc) -> Optional[str]:
         """
         Docling stores captions as REFERENCES to other TextItems, not inline
-        text — this resolves that reference. If your installed docling
+        text - this resolves that reference. If your installed docling
         version exposes captions differently, this is the function to fix
         based on the actual error/output you see.
         """

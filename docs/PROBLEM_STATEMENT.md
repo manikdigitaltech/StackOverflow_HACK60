@@ -2,7 +2,7 @@
 
 > Build an agentic AI system that reads a research paper end-to-end, evaluates it like a
 > peer reviewer, grounds every judgment in retrieved literature, and produces a structured,
-> explainable review report — all within a 24 GB GPU budget.
+> explainable review report - all within a 24 GB GPU budget.
 
 ---
 
@@ -111,12 +111,12 @@
 
 ### Pipeline stages
 
-1. **Scientific Document Understanding** — PDF parsing, layout detection, OCR, figure extraction, table extraction, reference parsing.
-2. **Multi-Agent Controller** (LangGraph / CrewAI) — dispatches to specialized agents.
-3. **Specialized Agents** — Novelty (literature comparison), Method (experiments, methodology), Evidence (missing baselines), Citation (similarity, references).
-4. **RAG Layer** — PeerRead dataset, Semantic Scholar API, arXiv literature → FAISS + LangChain knowledge base.
-5. **Scientific Reasoning LLM** — Llama 3.1 / Qwen2.5 / transformer models.
-6. **Self-Reflection & Verifier Agent** — consistency check, hallucination detection, evidence validation, explainability.
+1. **Scientific Document Understanding** - PDF parsing, layout detection, OCR, figure extraction, table extraction, reference parsing.
+2. **Multi-Agent Controller** (LangGraph / CrewAI) - dispatches to specialized agents.
+3. **Specialized Agents** - Novelty (literature comparison), Method (experiments, methodology), Evidence (missing baselines), Citation (similarity, references).
+4. **RAG Layer** - PeerRead dataset, Semantic Scholar API, arXiv literature → FAISS + LangChain knowledge base.
+5. **Scientific Reasoning LLM** - Llama 3.1 / Qwen2.5 / transformer models.
+6. **Self-Reflection & Verifier Agent** - consistency check, hallucination detection, evidence validation, explainability.
 7. **Human-in-the-Loop Approval**.
 8. **Final Review Report**.
 
@@ -131,7 +131,7 @@ The system must produce:
 - Weaknesses
 - Questions for Authors / Rebuttal
 - Final Review Conclusion
-- **Review Rating** — *Accept / Weak Accept / Borderline / Weak Reject / Reject*
+- **Review Rating** - *Accept / Weak Accept / Borderline / Weak Reject / Reject*
 - Reviewer Confidence
 - Rating Justification
 
@@ -147,9 +147,9 @@ The system must produce:
 
 ## 8. Brownie Points
 
-- **Quantitative agreement vs. PeerRead ground truth** — accuracy / F1 / Cohen's κ on the test split.
-- **Rebuttal-aware re-review** — the agent revises its verdict after a simulated author rebuttal.
-- **Full local deployment** — the entire checklist above running locally.
+- **Quantitative agreement vs. PeerRead ground truth** - accuracy / F1 / Cohen's κ on the test split.
+- **Rebuttal-aware re-review** - the agent revises its verdict after a simulated author rebuttal.
+- **Full local deployment** - the entire checklist above running locally.
 
 ---
 
@@ -163,7 +163,7 @@ The system must produce:
 
 ### Data split rules
 
-> Use the repository's built-in **80/10/10 train/dev/test split (~1.3K official reviews)** — **do not create your own split.**
+> Use the repository's built-in **80/10/10 train/dev/test split (~1.3K official reviews)** - **do not create your own split.**
 > Fine-tune and develop **only on the train set**; report all metrics on the **test set**.
 > The two optional sources may be used freely for retrieval but are **not** part of the fixed evaluation set, and using them (or not) has **no bearing on grading**.
 

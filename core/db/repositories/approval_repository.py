@@ -1,4 +1,4 @@
-"""Repository for `human_approvals` — records the reviewer's decision."""
+"""Repository for `human_approvals` - records the reviewer's decision."""
 
 from typing import Optional
 from sqlalchemy.orm import Session

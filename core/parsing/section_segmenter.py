@@ -2,7 +2,7 @@
 Groups Docling's flat, reading-order text-item stream into named Sections,
 and identifies the paper's title and abstract along the way.
 
-Docling doesn't hand you "the abstract" as a labeled field — it hands you a
+Docling doesn't hand you "the abstract" as a labeled field - it hands you a
 stream of (label, text) pairs in reading order. This module is the glue that
 turns that stream into something section-shaped.
 """
@@ -64,7 +64,7 @@ def _detect_title(text_items: List[Tuple[str, str, Optional[int]]]) -> str:
     for label, text, _page in text_items:
         if (label or "").lower() == "title" and text and text.strip():
             return text.strip()
-    # No explicit title-labeled item — fall back to the first non-empty
+    # No explicit title-labeled item - fall back to the first non-empty
     # text block, which in practice is almost always the title for
     # academic papers (the big heading at the top of page 1).
     for _label, text, _page in text_items:
@@ -105,7 +105,7 @@ def segment_sections(
             continue
 
         # Skip the title itself wherever it appears (main heading, running
-        # header repeats on later pages, etc.) — it's never a real section.
+        # header repeats on later pages, etc.) - it's never a real section.
         if title and text == title:
             continue
 

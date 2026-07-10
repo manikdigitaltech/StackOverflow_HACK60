@@ -45,7 +45,7 @@ class LLMSettings(BaseModel):
     max_tokens: int = 4096
     json_mode: bool = True
     request_timeout_seconds: int = 120  # generous default for CPU inference
-    context_window: int = 8192          # passed as Ollama's num_ctx — default Ollama context (2048-4096) is too small
+    context_window: int = 8192          # passed as Ollama's num_ctx - default Ollama context (2048-4096) is too small
 
 
 class ParsingSettings(BaseModel):
@@ -130,5 +130,5 @@ class AppSettings(BaseSettings):
     )
 
 
-# Single shared instance — import this, don't re-instantiate AppSettings elsewhere.
+# Single shared instance - import this, don't re-instantiate AppSettings elsewhere.
 settings = AppSettings()
