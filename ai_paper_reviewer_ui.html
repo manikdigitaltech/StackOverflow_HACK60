@@ -1681,6 +1681,76 @@
       margin: 0 auto;
     }
 
+    /* Author rebuttal & re-review panel (Human Approval view) */
+    .rebuttal-panel {
+      margin-top: 26px;
+      padding-top: 22px;
+      border-top: 1px solid var(--glass-border);
+    }
+
+    .rebuttal-btn {
+      margin-top: 10px;
+      padding: 12px 18px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 13.5px;
+      cursor: pointer;
+      color: #fff;
+      border: 1px solid var(--glass-border);
+      background: var(--grad, linear-gradient(135deg, #8b5cf6, #6366f1));
+    }
+
+    .rebuttal-btn:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .rebuttal-result {
+      margin-top: 18px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .rebuttal-delta {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .rebuttal-delta .arrow {
+      opacity: .7;
+    }
+
+    .rebuttal-move {
+      font-family: 'Inter', sans-serif;
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 3px 11px;
+      border-radius: 999px;
+    }
+
+    .move-up {
+      background: rgba(34, 197, 94, .12);
+      color: var(--green);
+    }
+
+    .move-down {
+      background: rgba(239, 68, 68, .12);
+      color: var(--red, #ef4444);
+    }
+
+    .move-flat {
+      background: var(--glass);
+      color: var(--text-2);
+    }
+
     .section-title {
       font-family: 'Space Grotesk', sans-serif;
       font-size: 24px;
@@ -2253,6 +2323,17 @@
                 <option value="weak_reject">Weak Reject</option>
                 <option value="reject">Reject</option>
               </select>
+            </div>
+
+            <!-- Author rebuttal & re-review -- POST /api/rebuttal/{run_id}. Only
+                 meaningful once the original review is done, since the backend
+                 reports how the verdict MOVES against it. -->
+            <div class="rebuttal-panel" id="rebuttalPanel" hidden>
+              <div class="section-title" style="font-size:18px;">Author Rebuttal &amp; Re-Review</div>
+              <div class="section-sub" style="margin-bottom:14px;">Fold an author response into a full re-review. The revised verdict re-runs the entire pipeline (grounding, reflection, approval) and parks at its own approval gate — this can take a while.</div>
+              <textarea class="comment-box" id="rebuttalText" placeholder="Paste the authors' rebuttal here…"></textarea>
+              <button class="rebuttal-btn" id="rebuttalSubmit" onclick="submitRebuttal()">Re-review with rebuttal</button>
+              <div class="rebuttal-result" id="rebuttalResult" hidden></div>
             </div>
           </div>
         </div>
@@ -3462,6 +3543,8 @@
     function renderApprovalView() {
       const e = liveEvents['final_report'];
       const doc = document.getElementById('approvalDoc');
+      const rebPanel = document.getElementById('rebuttalPanel');
+      if (rebPanel) rebPanel.hidden = !(e && e.status === 'done' && e.result);
       if (!e || e.status !== 'done' || !e.result) return;
       const r = e.result;
       const approvalEv = liveEvents['human_approval'];
@@ -3578,6 +3661,105 @@
         alert(`Recorded: ${titleCase(decided.decision || body.decision)}. This decision is now saved in human_approvals for run ${runId}.`);
       } catch (err) {
         alert(`Could not record this decision: ${err.message}\n\n(The review itself is unaffected -- this only means the approval record wasn't saved. Check that MySQL is reachable.)`);
+      }
+    }
+
+    // ---- Author rebuttal & re-review ----
+    // POST /api/rebuttal/{run_id} (server/main.py) folds the authors' rebuttal
+    // into a full re-run of the review graph on a `{run_id}-rebuttal` thread and
+    // returns how the recommendation moved plus a rebuttal_run_id to sign the
+    // revised verdict off on. The re-review runs the whole pipeline server-side,
+    // so this request is deliberately long-lived.
+    let rebuttalRunId = null;
+
+    async function submitRebuttal() {
+      const fr = liveEvents['final_report'];
+      if (!runId || !fr || fr.status !== 'done' || !fr.result) {
+        alert('Re-review needs a completed original review first -- wait for the pipeline to finish, then submit the rebuttal.');
+        return;
+      }
+      const text = document.getElementById('rebuttalText').value.trim();
+      if (!text) { alert('Paste the authors\' rebuttal first.'); return; }
+
+      const btn = document.getElementById('rebuttalSubmit');
+      btn.disabled = true;
+      const label = btn.textContent;
+      btn.textContent = 'Re-reviewing… (full pipeline, this can take a while)';
+      try {
+        const resp = await fetch(`/api/rebuttal/${runId}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rebuttal_text: text }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { alert(data.detail || 'Re-review failed.'); return; }
+        rebuttalRunId = data.rebuttal_run_id;
+        renderRebuttalResult(data);
+      } catch (err) {
+        alert(`Re-review failed: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    }
+
+    function renderRebuttalResult(data) {
+      const box = document.getElementById('rebuttalResult');
+      const c = data.comparison;
+      const rev = data.revised_review;
+
+      let deltaHtml = '';
+      if (c) {
+        const cls = c.direction === 'more_favorable' ? 'move-up'
+          : c.direction === 'less_favorable' ? 'move-down' : 'move-flat';
+        const arrow = c.direction === 'more_favorable' ? '↑'
+          : c.direction === 'less_favorable' ? '↓' : '→';
+        const n = Math.abs(c.steps);
+        const moveLabel = c.direction === 'unchanged'
+          ? 'Verdict unchanged'
+          : `${n} step${n === 1 ? '' : 's'} ${c.direction === 'more_favorable' ? 'toward accept' : 'toward reject'}`;
+        deltaHtml = `<div class="rebuttal-delta">
+            <span>${titleCase(c.original_recommendation)}</span>
+            <span class="arrow">→</span>
+            <span>${titleCase(c.revised_recommendation)}</span>
+            <span class="rebuttal-move ${cls}">${arrow} ${moveLabel}</span>
+          </div>`;
+      } else {
+        deltaHtml = `<div class="rebuttal-delta"><span>${rev ? titleCase(rev.final_recommendation) : 'Revised verdict ready'}</span></div>`;
+      }
+
+      const parkNote = data.awaiting_approval
+        ? `<p style="color:var(--orange);font-weight:600;margin-top:8px;font-size:13px;">⏸ The revised verdict is parked at its own approval gate (run <code>${escapeHtml(data.rebuttal_run_id)}</code>) and is not issued until you decide.</p>
+           <div class="approval-actions" style="margin-top:14px;margin-bottom:0;">
+             <button class="btn-approve" onclick="approveRevised('approve')">Approve revised</button>
+             <button class="btn-reject" onclick="approveRevised('reject')">Reject revised</button>
+           </div>`
+        : '';
+
+      const summary = rev && rev.paper_summary
+        ? `<h3 style="font-size:15px;font-weight:600;margin-top:16px;">Revised summary</h3>
+           <p style="font-size:13.5px;color:var(--text-2);line-height:1.7;">${escapeHtml(rev.paper_summary)}</p>`
+        : '';
+
+      box.hidden = false;
+      box.innerHTML = deltaHtml + parkNote + summary;
+    }
+
+    // Signs the revised (rebuttal) verdict off on its own thread via the same
+    // POST /api/approval/{run_id} path the original review uses.
+    async function approveRevised(action) {
+      if (!rebuttalRunId) return;
+      const body = { decision: action === 'approve' ? 'approved' : 'rejected', approver: 'dashboard-user' };
+      try {
+        const resp = await fetch(`/api/approval/${rebuttalRunId}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { alert(data.detail || 'Could not record the revised decision.'); return; }
+        const decided = data.human_approval || {};
+        document.querySelectorAll('#rebuttalResult .approval-actions button').forEach(b => b.disabled = true);
+        alert(`Revised verdict recorded: ${titleCase(decided.decision || body.decision)} for run ${rebuttalRunId}.`);
+      } catch (err) {
+        alert(`Could not record the revised decision: ${err.message}`);
       }
     }
 
